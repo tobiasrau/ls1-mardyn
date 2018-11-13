@@ -46,7 +46,6 @@
 #include "plugins/Mirror.h"
 #include "plugins/MirrorSystem.h"
 #include "plugins/NEMD/RegionSampling.h"
-#include "plugins/RedundancyResilience.h"
 #include "plugins/TestPlugin.h"
 #include "plugins/VectorizationTuner.h"
 #include "plugins/WallPotential.h"
@@ -89,7 +88,6 @@ void PluginFactory<PluginBase>::registerDefaultPlugins(){
     REGISTER_PLUGIN(MmspdWriter);
     REGISTER_PLUGIN(PovWriter);
     REGISTER_PLUGIN(RDF);
-    REGISTER_PLUGIN(RedundancyResilience);
     REGISTER_PLUGIN(RegionSampling);
     REGISTER_PLUGIN(ResultWriter);
     REGISTER_PLUGIN(SysMonOutput);
