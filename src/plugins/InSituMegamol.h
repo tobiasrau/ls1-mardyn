@@ -27,7 +27,7 @@
 
 class Snapshot;
 
-#ifdef INSITU
+#ifdef ENABLE_INSITU
 #include "zmq.h"
 
 //typedef void to easily identify the ZMQ components (which are all essentially pointers to some stuff)
@@ -283,7 +283,7 @@ private:
 	ZmqManager _zmqManager;
 	bool _isEnabled;
 };
-#else
+#else //ENABLE_INSITU
 class InSituMegamol: public PluginBase {
 public:
 	InSituMegamol(); 
@@ -327,5 +327,5 @@ public:
 
 	static PluginBase* createInstance() { return new InSituMegamol(); }
 };
-#endif // INSITU
+#endif // ENABLE_INSITU
 #endif /* SRC_PLUGINS_REDUNDANCYRESILIENCE_H_ */

@@ -16,7 +16,7 @@
 
 using Log::global_log;
 
-#ifdef INSITU
+#ifdef ENABLE_INSITU
 #define BLOCK_POLICY_HANDSHAKE 0
 #define BLOCK_POLICY_UPDATE ZMQ_DONTWAIT
 
@@ -620,4 +620,4 @@ InSituMegamol::InSituMegamol(void) {
 			<< std::endl;
 }
 
-#endif //INSITU
+#endif //ENABLE_INSITU
