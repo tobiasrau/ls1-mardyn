@@ -31,7 +31,7 @@ message(STATUS "Installing ZMQ.")
     include_directories(
         ${ZMQ_SOURCE_DIR}/include
     )
-    set(ZMQ_LIB ${ZMQ_BINARY_DIR}/libzmq.so)
+    set(ZMQ_LIB ${ZMQ_BINARY_DIR}/lib/libzmq.so)
 else()
     set(ZMQ_LIB "")
     message(STATUS "Insitu Disabled")
