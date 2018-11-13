@@ -13,7 +13,7 @@ message(STATUS "Installing ZMQ.")
 
     # Download and install zeromq
     ExternalProject_Add(
-        lz4
+        zmq
         GIT_REPOSITORY https://github.com/zeromq/libzmq.git
         GIT_TAG master
         SOURCE_DIR ${ZMQ_SOURCE_DIR}
@@ -21,15 +21,15 @@ message(STATUS "Installing ZMQ.")
         INSTALL_COMMAND ""    
     )
 
-    # Get lz4 source and binary directories from CMake project
+    # Get zmq source and binary directories from CMake project
     ExternalProject_Get_Property(zmq source_dir binary_dir)
 
-    # Create a liblz4 target to be used as a dependency by the program
+    # Create a libzmq target to be used as a dependency by the program
     add_library(libzmq IMPORTED STATIC GLOBAL)
     add_dependencies(libzmq zmq)
 
     include_directories(
-        ${LZ4_SOURCE_DIR}/lib
+        ${ZMQ_SOURCE_DIR}/include
     )
     set(ZMQ_LIB ${ZMQ_BINARY_DIR}/libzmq.so)
 else()

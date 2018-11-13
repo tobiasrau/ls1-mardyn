@@ -54,6 +54,7 @@ TARGET_LINK_LIBRARIES(MarDyn
         ${VTK_LIB}     # for VTK/xerces
         ${CPPUNIT_LIB} # for unit tests
         ${autopas_lib}  # for autopas
+	${ZMQ_LIB}     # for insitu plugin
         )
 
 ADD_TEST(

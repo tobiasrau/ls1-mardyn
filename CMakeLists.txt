@@ -66,6 +66,8 @@ include(bhfmm)
 # ----- third: include autopas
 include(autopas)
 
+# ----- add insitu dependencies
+include(insitu)
 
 # add mardyn
 ADD_SUBDIRECTORY(src)
