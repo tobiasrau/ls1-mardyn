@@ -64,7 +64,7 @@
         <connectionName>tcp://localhost:33333</connectionName>
         <replyBufferSize>16384</replyBufferSize>
         <ringBufferSize>3</ringBufferSize>
-        <syncTimeout>5</syncTimeout>
+        <syncTimeout>500</syncTimeout>
       </outputplugin>
     </output>
   </simulation>
