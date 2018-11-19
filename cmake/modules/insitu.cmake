@@ -19,6 +19,7 @@ message(STATUS "Installing ZMQ.")
         SOURCE_DIR ${ZMQ_SOURCE_DIR}
         BINARY_DIR ${ZMQ_BINARY_DIR}
         INSTALL_COMMAND ""    
+	CMAKE_ARGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     )
 
     # Get zmq source and binary directories from CMake project
