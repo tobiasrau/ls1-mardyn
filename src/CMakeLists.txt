@@ -53,8 +53,8 @@ TARGET_LINK_LIBRARIES(MarDyn
         ${LAPACK_LIB}  # for armadillo
         ${VTK_LIB}     # for VTK/xerces
         ${CPPUNIT_LIB} # for unit tests
-        ${autopas_lib}  # for autopas
-	    libzmq     # for insitu plugin
+        ${autopas_lib} # for autopas
+	    libzmq         # for insitu plugin. Need to add "real" target to ensure dependency resolving during parallel compile
         )
 
 ADD_TEST(

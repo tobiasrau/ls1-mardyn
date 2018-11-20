@@ -22,6 +22,8 @@ public:
 
 	virtual ~MoleculeTest();
 
+    void testSerialize();
+
 	void testIsLessThan();
 
 };

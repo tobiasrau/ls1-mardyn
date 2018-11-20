@@ -17,6 +17,26 @@ MoleculeTest::MoleculeTest() {
 MoleculeTest::~MoleculeTest() {
 }
 
+void MoleculeTest::testSerialize() {
+	std::vector<Component> components;
+    decltype(std::declval<Component>().ID()) const id = 0;
+	Component dummyComponent(id);
+	dummyComponent.addLJcenter(0,0,0,0,0,0,0,false);
+	components.push_back(dummyComponent);
+
+	Molecule a(
+        0,                      //id
+        &components[0],         //component pointer
+        1.0, 2.0, 3.0,          //r
+        4.0, 5.0, 6.0,          //v
+        7.0, 8.0, 9.0, 10.0,    //q
+        11.0, 12.0, 13.0        //D
+    );
+
+    std::vector<char> buffer;
+    a.serialize()
+}
+
 
 void MoleculeTest::testIsLessThan() {
 	std::vector<Component> components;
