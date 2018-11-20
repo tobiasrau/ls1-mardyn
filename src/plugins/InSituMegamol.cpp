@@ -364,38 +364,37 @@ bool InSituMegamol::ZmqManager::performHandshake(void) {
 		}
 	} while (ismStatus != ISM_SYNC_SUCCESS);
 
-	// send message creating all the modules
-	msg << "mmCreateModule(\"MMPLDDataSource\", \"" << _datTag.str() << "\")\n"
-        << "mmCreateModule(\"OSPRayNHSphereGeometry\", \"" << _geoTag.str() << "\")\n"
-        << "mmCreateCall(\"MultiParticleDataCall\", \"" << _geoTag.str() << "::getData\", \"" << _datTag.str() << "::getData\")\n"
-        << "mmCreateCall(\"CallOSPRayMaterial\", \""<< _geoTag.str() <<"::getMaterialSlot\", " << "\"::mat::deployMaterialSlot\")\n"
-        << "mmCreateChainCall(\"CallOSPRayStructure\", \"::rnd::getStructure\", \"" << _geoTag.str() << "::deployStructureSlot\")\n";
-	global_log->set_mpi_output_all();
-	global_log->info() << "    ISM: Sending creation message." << std::endl;
-	auto bytesSent = zmq_send(_pairsocket.get(), msg.str().data(), msg.str().size(), 0);
-	if (bytesSent != msg.str().size()) {
-		auto pairSendError = errno;
-		global_log->info() << "    ISM: zmq_send bytes sent <-> message length: mismatched." 
-				<< pairSendError << " " << strerror(pairSendError) << std::endl;
-		return false;
-	}
-	global_log->info() << "    ISM: Creation message sent." << std::endl;
-	global_log->set_mpi_output_root();
-
-	/// confirm that Megamol replied after constructing the modules
-	_timeoutCheck(true); // reset timeout counter
-	do {
-		// try to get ack from Megamol. Abort either on error or after _syncTimeout sec.
-		ismStatus = _recvCreationMessageAck();
-		if (ismStatus == ISM_SYNC_TIMEOUT
-				|| ismStatus == ISM_SYNC_REPLY_BUFFER_OVERFLOW
-				|| ismStatus == ISM_SYNC_SEND_FAILED
-				|| ismStatus == ISM_SYNC_UNKNOWN_ERROR) {
-			global_log->info() << "    ISM: Megamol send message failed." << std::endl;
-			return false;
-		}
-	} while (ismStatus != ISM_SYNC_SUCCESS);
-	// surprisingly, stuff actually worked, enable the plugin
+    // send message creating all the modules
+    // msg << "mmCreateModule(\"MMPLDDataSource\", \"" << _datTag.str() << "\")\n"
+    //     << "mmCreateModule(\"OSPRayNHSphereGeometry\", \"" << _geoTag.str() << "\")\n"
+    //     << "mmCreateCall(\"MultiParticleDataCall\", \"" << _geoTag.str() << "::getData\", \"" << _datTag.str() << "::getData\")\n"
+    //     << "mmCreateCall(\"CallOSPRayMaterial\", \""<< _geoTag.str() <<"::getMaterialSlot\", " << "\"::mat::deployMaterialSlot\")\n"
+    //     << "mmCreateChainCall(\"CallOSPRayStructure\", \"::rnd::getStructure\", \"" << _geoTag.str() << "::deployStructureSlot\")\n";
+    // global_log->set_mpi_output_all();
+    // global_log->info() << "    ISM: Sending creation message." << std::endl;
+    // auto bytesSent = zmq_send(_pairsocket.get(), msg.str().data(), msg.str().size(), 0);
+    // if (bytesSent != msg.str().size()) {
+    // 	auto pairSendError = errno;
+    // 	global_log->info() << "    ISM: zmq_send bytes sent <-> message length: mismatched." 
+    // 			<< pairSendError << " " << strerror(pairSendError) << std::endl;
+    // 	return false;
+    // }
+    // global_log->info() << "    ISM: Creation message sent." << std::endl;
+    // global_log->set_mpi_output_root();
+    // /// confirm that Megamol replied after constructing the modules
+    // _timeoutCheck(true); // reset timeout counter
+    // do {
+    // 	// try to get ack from Megamol. Abort either on error or after _syncTimeout sec.
+    // 	ismStatus = _recvCreationMessageAck();
+    // 	if (ismStatus == ISM_SYNC_TIMEOUT
+    // 			|| ismStatus == ISM_SYNC_REPLY_BUFFER_OVERFLOW
+    // 			|| ismStatus == ISM_SYNC_SEND_FAILED
+    // 			|| ismStatus == ISM_SYNC_UNKNOWN_ERROR) {
+    // 		global_log->info() << "    ISM: Megamol send message failed." << std::endl;
+    // 		return false;
+    // 	}
+    // } while (ismStatus != ISM_SYNC_SUCCESS);
+    // surprisingly, stuff actually worked, enable the plugin
 	return true;
 }
 
@@ -542,7 +541,7 @@ InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_timeoutCheck(bool con
 bool InSituMegamol::ZmqManager::triggerUpdate(std::string fname) {
 	InSituMegamol::ISM_SYNC_STATUS ismStatus = ISM_SYNC_SYNCHRONIZING;
 	std::stringstream msg;
-	msg << "mmSetParamGroupValue(\"ls1_group\", \"" << _datTag.str() << "::filename\", \"" << fname << "\")";
+	msg << "mmSetParamGroupValue(\"ls1_group\", \"" << "::dat" << "::filename\", \"" << fname << "\")";
 	global_log->set_mpi_output_all();
 	global_log->info() << " send msg:\n" << msg.str() << std::endl;
 	global_log->set_mpi_output_root();
