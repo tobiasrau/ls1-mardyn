@@ -37,127 +37,127 @@ typedef void ZmqPublish;
 typedef std::vector<std::string> RingBuffer;
 
 class InSituMegamol: public PluginBase {
-	/**
-	 * @brief Sync status return 
-	 * 
-	 * 
-	 */
-	enum ISM_SYNC_STATUS {
-		ISM_SYNC_SUCCESS = 0,           // 0
-		ISM_SYNC_SYNCHRONIZING,         // 1
-		ISM_SYNC_REPLY_BUFFER_OVERFLOW, // 2
-		ISM_SYNC_TIMEOUT,               // 3
-		ISM_SYNC_SEND_FAILED,           // 4
-		ISM_SYNC_RESET,                 // 5
-		ISM_SYNC_UNKNOWN_ERROR          // 6
-	};
-	/**
-	 * @brief Manages the ZMQ calls to Megamol
-	 * 
-	 * Used to abstract the messages sent to Megamol. Also manages the resources
-	 * required for the communication.
-	 */
-	class ZmqManager {
-	public:
-		ZmqManager();
-		~ZmqManager();
-		ZmqManager(ZmqManager const& rhs); //not a real copy: new resources get allocated. should probably share context...
+    /**
+     * @brief Sync status return 
+     * 
+     * 
+     */
+    enum ISM_SYNC_STATUS {
+        ISM_SYNC_SUCCESS = 0,           // 0
+        ISM_SYNC_SYNCHRONIZING,         // 1
+        ISM_SYNC_REPLY_BUFFER_OVERFLOW, // 2
+        ISM_SYNC_TIMEOUT,               // 3
+        ISM_SYNC_SEND_FAILED,           // 4
+        ISM_SYNC_RESET,                 // 5
+        ISM_SYNC_UNKNOWN_ERROR          // 6
+    };
+    /**
+     * @brief Manages the ZMQ calls to Megamol
+     * 
+     * Used to abstract the messages sent to Megamol. Also manages the resources
+     * required for the communication.
+     */
+    class ZmqManager {
+    public:
+        ZmqManager();
+        ~ZmqManager();
+        ZmqManager(ZmqManager const& rhs); //not a real copy: new resources get allocated. should probably share context...
 
-		/**
-		 * @brief First 'handshake' communication with Megamol. If this fails (returns false), deactivate the plugin
-		 */
-		bool performHandshake(void);
-		/**
-		 * @brief This is called after the data in the shared memory file has been updated.
-		 */
-		bool triggerUpdate(std::string fname);
-		/**
-		 * @brief Return a string with the ZMQ version number
-		 */
-		std::string getZmqVersion(void) const;
-		/**
-		 * @brief Connect the requester object to the connection name contained in XML input
-		 */
-		void setConnection(std::string);
-		/**
-		 * @brief Generate name internal module names strings tied to rank, so Megamol can discriminate
-		 */
-		void setModuleNames(int rank);
-		/**
-		 * @brief Sets the maximum size of the buffer for Megamol's reply in zmq_recv call.
-		 */
-		void setReplyBufferSize(int replyBufferSize) {
-			_replyBufferSize = replyBufferSize;
-			_replyBuffer.clear();
-			_replyBuffer.resize(_replyBufferSize, 0);
-		}
-		/**
-		 * @brief Pass on XML input
-		 */
-		void setSyncTimeout(int syncTimeout) {
-			_syncTimeout = syncTimeout;
-		}
-	private:
-		ZmqManager& operator=(ZmqManager const& rhs); //definitely disallow this guy
-		/**
-		 * @brief Connect the pairsocket object to the connection name obtained from Megamol
-		 */
-		int setPairConnection(std::string);
-		/**
-		 * @brief Evaluates replies from Megamol during handshake
-		 */
-		InSituMegamol::ISM_SYNC_STATUS _getMegamolPairPort(void);
-		/**
-		 * @brief Evaluates replies from Megamol during handshake
-		 */
-		InSituMegamol::ISM_SYNC_STATUS _waitOnMegamolModules(void);
-		/**
-		 * @brief Evaluates replies from Megamol during handshake
-		 */
-		InSituMegamol::ISM_SYNC_STATUS _recvCreationMessageAck(void);
-		/**
-		 * @brief Evaluates replies from Megamol during handshake
-		 */
-		InSituMegamol::ISM_SYNC_STATUS _recvFileAck(void);
-		/**
-		 * @brief Waits a sec, returns either ISM_SYNC_TIMEOUT or ISM_SYNC_SYNCHRONIZING
-		 */
-		InSituMegamol::ISM_SYNC_STATUS _timeoutCheck(bool const reset=false) const;
-		/**
-		 * @brief Wraps the zmq_send. Wrapper needed to handle the internal send/recv matching.
-		 */
-		int _send(std::string msg, int blockPolicy);
-		/**
-		 * @brief Wraps the zmq_recv. Wrapper needed to handle the internal send/recv matching.
-		 */
-		int _recv(int blockPolicy);
+        /**
+         * @brief First 'handshake' communication with Megamol. If this fails (returns false), deactivate the plugin
+         */
+        bool performHandshake(void);
+        /**
+         * @brief This is called after the data in the shared memory file has been updated.
+         */
+        bool triggerUpdate(std::string fname);
+        /**
+         * @brief Return a string with the ZMQ version number
+         */
+        std::string getZmqVersion(void) const;
+        /**
+         * @brief Connect the requester object to the connection name contained in XML input
+         */
+        void setConnection(std::string);
+        /**
+         * @brief Generate name internal module names strings tied to rank, so Megamol can discriminate
+         */
+        void setModuleNames(int rank);
+        /**
+         * @brief Sets the maximum size of the buffer for Megamol's reply in zmq_recv call.
+         */
+        void setReplyBufferSize(int replyBufferSize) {
+            _replyBufferSize = replyBufferSize;
+            _replyBuffer.clear();
+            _replyBuffer.resize(_replyBufferSize, 0);
+        }
+        /**
+         * @brief Pass on XML input
+         */
+        void setSyncTimeout(int syncTimeout) {
+            _syncTimeout = syncTimeout;
+        }
+    private:
+        ZmqManager& operator=(ZmqManager const& rhs); //definitely disallow this guy
+        /**
+         * @brief Connect the pairsocket object to the connection name obtained from Megamol
+         */
+        int setPairConnection(std::string);
+        /**
+         * @brief Evaluates replies from Megamol during handshake
+         */
+        InSituMegamol::ISM_SYNC_STATUS _getMegamolPairPort(void);
+        /**
+         * @brief Evaluates replies from Megamol during handshake
+         */
+        InSituMegamol::ISM_SYNC_STATUS _waitOnMegamolModules(void);
+        /**
+         * @brief Evaluates replies from Megamol during handshake
+         */
+        InSituMegamol::ISM_SYNC_STATUS _recvCreationMessageAck(void);
+        /**
+         * @brief Evaluates replies from Megamol during handshake
+         */
+        InSituMegamol::ISM_SYNC_STATUS _recvFileAck(void);
+        /**
+         * @brief Waits a sec, returns either ISM_SYNC_TIMEOUT or ISM_SYNC_SYNCHRONIZING
+         */
+        InSituMegamol::ISM_SYNC_STATUS _timeoutCheck(bool const reset=false) const;
+        /**
+         * @brief Wraps the zmq_send. Wrapper needed to handle the internal send/recv matching.
+         */
+        int _send(std::string msg, int blockPolicy);
+        /**
+         * @brief Wraps the zmq_recv. Wrapper needed to handle the internal send/recv matching.
+         */
+        int _recv(int blockPolicy);
 
-		int _replyBufferSize;
-		int _syncTimeout;
-		int _sendCount;
-		std::string _pairPort;
-		std::vector<char> _replyBuffer;
-		std::stringstream _datTag; 
-		std::stringstream _geoTag;
-		std::stringstream _concatTag;
-	 	std::unique_ptr<ZmqContext, decltype(&zmq_ctx_destroy)> _context;
-		std::unique_ptr<ZmqRequest, decltype(&zmq_close)> _requester;
-		std::unique_ptr<ZmqPublish, decltype(&zmq_close)> _pairsocket;
-	};
+        int _replyBufferSize;
+        int _syncTimeout;
+        int _sendCount;
+        std::string _pairPort;
+        std::vector<char> _replyBuffer;
+        std::stringstream _datTag; 
+        std::stringstream _geoTag;
+        std::stringstream _concatTag;
+         std::unique_ptr<ZmqContext, decltype(&zmq_ctx_destroy)> _context;
+        std::unique_ptr<ZmqRequest, decltype(&zmq_close)> _requester;
+        std::unique_ptr<ZmqPublish, decltype(&zmq_close)> _pairsocket;
+    };
 public:
-	InSituMegamol(); 
-	virtual ~InSituMegamol() {};
+    InSituMegamol(); 
+    virtual ~InSituMegamol() {};
 
-	void init(ParticleContainer* particleContainer,
-			DomainDecompBase* domainDecomp, Domain* domain
-	);
+    void init(ParticleContainer* particleContainer,
+            DomainDecompBase* domainDecomp, Domain* domain
+    );
 
     void readXML(XMLfileUnits& xmlconfig);
 
-	void beforeEventNewTimestep(
-			ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
-			unsigned long simstep
-	);
+    void beforeEventNewTimestep(
+            ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
+            unsigned long simstep
+    );
 
     void beforeForces(
             ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
@@ -172,134 +172,134 @@ public:
     void endStep(
             ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
             Domain* domain, unsigned long simstep
-	);
+    );
     
-	void finish(ParticleContainer* particleContainer,
+    void finish(ParticleContainer* particleContainer,
             DomainDecompBase* domainDecomp, Domain* domain
-	) {}
+    ) {}
 
     std::string getPluginName() {
-    	return std::string("InSituMegamol");
+        return std::string("InSituMegamol");
     }
 
-	static PluginBase* createInstance() { return new InSituMegamol(); }
+    static PluginBase* createInstance() { return new InSituMegamol(); }
 
-	class Snapshot {
-	public:
-		void addMolecule(const Molecule& m) {
-			_molecules.push_back(m);
-		}
+    class Snapshot {
+    public:
+        void addMolecule(const Molecule& m) {
+            _molecules.push_back(m);
+        }
 
-		double getCurrentTime() const {
-			return _currentTime;
-		}
+        double getCurrentTime() const {
+            return _currentTime;
+        }
 
-		void setCurrentTime(double currentTime) {
-			_currentTime = currentTime;
-		}
+        void setCurrentTime(double currentTime) {
+            _currentTime = currentTime;
+        }
 
-		const std::array<double, 3>& getBoxDims() const {
-			return _boxDims;
-		}
+        const std::array<double, 3>& getBoxDims() const {
+            return _boxDims;
+        }
 
-		void setBoxDims(const std::array<double, 3>& boxDims) {
-			_boxDims = boxDims;
-		}
+        void setBoxDims(const std::array<double, 3>& boxDims) {
+            _boxDims = boxDims;
+        }
 
-		unsigned long getGlobalNumberOfMolecules() const {
-			return _globalNumberOfMolecules;
-		}
+        unsigned long getGlobalNumberOfMolecules() const {
+            return _globalNumberOfMolecules;
+        }
 
-		void setGlobalNumberOfMolecules(unsigned long globalNumberOfMolecules) {
-			_globalNumberOfMolecules = globalNumberOfMolecules;
-		}
+        void setGlobalNumberOfMolecules(unsigned long globalNumberOfMolecules) {
+            _globalNumberOfMolecules = globalNumberOfMolecules;
+        }
 
-		double getTemperature() const {
-			return _temperature;
-		}
+        double getTemperature() const {
+            return _temperature;
+        }
 
-		void setTemperature(double temperature) {
-			_temperature = temperature;
-		}
+        void setTemperature(double temperature) {
+            _temperature = temperature;
+        }
 
-		int getRank() const {
-			return _rank;
-		}
+        int getRank() const {
+            return _rank;
+        }
 
-		void setRank(int rank) {
-			_rank = rank;
-		}
+        void setRank(int rank) {
+            _rank = rank;
+        }
 
-		const std::vector<Molecule>& getMolecules() const {
-			return _molecules;
-		}
+        const std::vector<Molecule>& getMolecules() const {
+            return _molecules;
+        }
 
-		void clearMolecules() {
-			_molecules.clear();
-		}
+        void clearMolecules() {
+            _molecules.clear();
+        }
 
-	private:
-		// snapshot data
-		std::vector<Molecule> _molecules;        ///< the molecule data should be backed up in here
-		double _currentTime;                     ///< the time step this snap shot was made should be stored here
-		int _rank;                     
-		// the following fields are maybe unnecessary, but leaving them here now for consistency to written headers in file-checkpoints
-		unsigned long _globalNumberOfMolecules;
-		double _temperature;                     // maybe not necessary; for consistency to currently written headers
-		std::array<double, 3> _boxDims;          // maybe not necessary; for consistency to currently written headers
-	};
+    private:
+        // snapshot data
+        std::vector<Molecule> _molecules;        ///< the molecule data should be backed up in here
+        double _currentTime;                     ///< the time step this snap shot was made should be stored here
+        int _rank;                     
+        // the following fields are maybe unnecessary, but leaving them here now for consistency to written headers in file-checkpoints
+        unsigned long _globalNumberOfMolecules;
+        double _temperature;                     // maybe not necessary; for consistency to currently written headers
+        std::array<double, 3> _boxDims;          // maybe not necessary; for consistency to currently written headers
+    };
 protected:
-	Snapshot _snapshot; // make an std::vector eventually
+    Snapshot _snapshot; // make an std::vector eventually
 private:
-	// XML settings
-	int _snapshotInterval;
-	int _replyBufferSize;
-	int _ringBufferSize;
-	int _syncTimeout;
-	std::string _connectionName;
+    // XML settings
+    int _snapshotInterval;
+    int _replyBufferSize;
+    int _ringBufferSize;
+    int _syncTimeout;
+    std::string _connectionName;
 
-	//other setup functions
-	void _createFnameRingBuffer(int const rank, int const size);
+    //other setup functions
+    void _createFnameRingBuffer(int const rank, int const size);
 
-	//gather data
-	std::vector<char> _generateMmpldSeekTable(std::vector< std::vector<char> >& dataLists);
-	std::vector<char> _buildMmpldDataList(ParticleContainer* particleContainer);
+    //gather data
+    std::vector<char> _generateMmpldSeekTable(std::vector< std::vector<char> >& dataLists);
+    std::vector<char> _buildMmpldDataList(ParticleContainer* particleContainer);
 
-	//per node performance logging
-	std::string _localLogFname;
-	void _addTimerEntry(std::string prefix, unsigned long simstep, double secs);
+    //per node performance logging
+    std::string _localLogFname;
+    void _addTimerEntry(std::string prefix, unsigned long simstep, double secs);
 
-	// serialize all
-	void _resetMmpldBuffer(void);
-	std::string _getNextFname(void);
-	void _addMmpldHeader(float* bbox, float simTime);
-	void _addMmpldSeekTable(std::vector<char> seekTable);
-	void _addMmpldFrame(std::vector< std::vector<char> > dataLists);
-	std::string _writeMmpldBuffer(int rank, unsigned long simstep);
+    // serialize all
+    void _resetMmpldBuffer(void);
+    std::string _getNextFname(void);
+    void _addMmpldHeader(float* bbox, float simTime);
+    void _addMmpldSeekTable(std::vector<char> seekTable);
+    void _addMmpldFrame(std::vector< std::vector<char> > dataLists);
+    std::string _writeMmpldBuffer(int rank, unsigned long simstep);
 
-	std::vector<char> _mmpldBuffer;
-	std::vector<char>::iterator _mmpldSize;
-	RingBuffer _fnameRingBuffer;
-	ZmqManager _zmqManager;
-	bool _isEnabled;
+    std::vector<char> _mmpldBuffer;
+    std::vector<char>::iterator _mmpldSize;
+    RingBuffer _fnameRingBuffer;
+    ZmqManager _zmqManager;
+    bool _isEnabled;
 };
 #else //ENABLE_INSITU
 class InSituMegamol: public PluginBase {
 public:
-	InSituMegamol(); 
-	virtual ~InSituMegamol() {};
-	void init(
-			ParticleContainer* particleContainer,
-			DomainDecompBase* domainDecomp, Domain* domain
-	) {}
+    InSituMegamol(); 
+    virtual ~InSituMegamol() {};
+    void init(
+            ParticleContainer* particleContainer,
+            DomainDecompBase* domainDecomp, Domain* domain
+    ) {}
 
     void readXML(XMLfileUnits& xmlconfig) {};
 
-	void beforeEventNewTimestep(
-			ParticleContainer* particleContainer,
-			DomainDecompBase* domainDecomp,
-			unsigned long simstep
-	) {}
+    void beforeEventNewTimestep(
+            ParticleContainer* particleContainer,
+            DomainDecompBase* domainDecomp,
+            unsigned long simstep
+    ) {}
 
     void beforeForces(
             ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
@@ -314,18 +314,18 @@ public:
     void endStep(
             ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
             Domain* domain, unsigned long simstep
-	) {}
+    ) {}
     
-	void finish(
-			ParticleContainer* particleContainer,
+    void finish(
+            ParticleContainer* particleContainer,
             DomainDecompBase* domainDecomp, Domain* domain
-	) {}
+    ) {}
 
     std::string getPluginName() {
-    	return std::string("InSituMegamol");
+        return std::string("InSituMegamol");
     }
 
-	static PluginBase* createInstance() { return new InSituMegamol(); }
+    static PluginBase* createInstance() { return new InSituMegamol(); }
 };
 #endif // ENABLE_INSITU
 #endif /* SRC_PLUGINS_REDUNDANCYRESILIENCE_H_ */
