@@ -162,12 +162,12 @@ public:
     void beforeForces(
             ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
             unsigned long simstep
-    ) {}
+    );
 
     void afterForces(
             ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
             unsigned long simstep
-    ) {}
+    );
 
     void endStep(
             ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
@@ -268,6 +268,10 @@ private:
     //per node performance logging
     std::string _localLogFname;
     void _addTimerEntry(std::string prefix, unsigned long simstep, double secs);
+
+    // plugin-internal timer for force calculation
+    std::chrono::time_point<std::chrono::high_resolution_clock> _startForceCalculation;
+    std::chrono::time_point<std::chrono::high_resolution_clock> _endForceCalculation;
 
     // serialize all
     void _resetMmpldBuffer(void);

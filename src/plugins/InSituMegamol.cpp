@@ -59,10 +59,29 @@ void InSituMegamol::readXML(XMLfileUnits& xmlconfig) {
             << _ringBufferSize << std::endl;
 }
 
-///reset the particle container with a saved snapshot
 void InSituMegamol::beforeEventNewTimestep(
         ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
         unsigned long simstep) {
+}
+
+void InSituMegamol::beforeForces(
+        ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
+        unsigned long simstep) {
+    _startForceCalculation = std::chrono::high_resolution_clock::now();
+    global_log->info() 
+            << "Time between force calculations: " 
+            << std::chrono::duration<double>(_startForceCalculation - _endForceCalculation).count()
+            << std::endl;
+}
+
+void InSituMegamol::afterForces(
+        ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
+        unsigned long simstep) {
+    _endForceCalculation = std::chrono::high_resolution_clock::now();
+    global_log->info() 
+            << "Force calculation time: " 
+            << std::chrono::duration<double>(_endForceCalculation - _startForceCalculation).count()
+            << std::endl;
 }
 
 void InSituMegamol::endStep(ParticleContainer* particleContainer,

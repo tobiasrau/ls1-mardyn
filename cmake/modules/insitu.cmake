@@ -19,7 +19,7 @@ message(STATUS "Installing ZMQ.")
         GIT_TAG master
         SOURCE_DIR ${ZMQ_SOURCE_DIR}
         INSTALL_COMMAND ""    
-        CMAKE_ARGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        CMAKE_ARGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
     )
 
     ExternalProject_get_property(zmq BINARY_DIR)
@@ -29,7 +29,7 @@ message(STATUS "Installing ZMQ.")
     file(MAKE_DIRECTORY ${ZMQ_INCLUDE_DIR})
 
     # Create a libzmq target to be used as a dependency by the program
-    add_library(libzmq IMPORTED STATIC GLOBAL)
+    add_library(libzmq IMPORTED SHARED GLOBAL)
     add_dependencies(libzmq zmq)
     set_target_properties(libzmq PROPERTIES
         IMPORTED_LOCATION "${BINARY_DIR}/lib/libzmq.so"
