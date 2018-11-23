@@ -3,7 +3,18 @@ option(ENABLE_INSITU "Enables Insitu Plugin, to be used in conjunction with Mega
 if(ENABLE_INSITU)
 message(STATUS "Insitu Enabled")
 message(STATUS "Installing ZMQ.")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_INSITU")
+    ## set linkage for hazelhen
+    if($ENV{CRAYPE_LINK_TYPE})
+        set(LINK_TYPE $ENV{CRAYPE_LINK_TYPE})
+	if (${LINK_TYPE} STREQUAL "dynamic")
+	    set(LINK_TYPE -${LINK_TYPE})
+            message(STATUS "Enabling dynamic linking for CRAY-XC40")
+        else()
+            message(STATUS "CRAYPE_LINK_TYPE was set, but not to dynamic, this might break things.")
+        endif()
+    endif()
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_INSITU ${LINK_TYPE}")
 
     # Enable ExternalProject CMake module
     include(ExternalProject)
@@ -31,6 +42,12 @@ message(STATUS "Installing ZMQ.")
     # Create a libzmq target to be used as a dependency by the program
     add_library(libzmq IMPORTED SHARED GLOBAL)
     add_dependencies(libzmq zmq)
+#    get_target_property(LIB_TYPE libzmq TYPE)
+#    if(LIB_TYPE STREQUAL "SHARED")
+#        set(LIB_SUFFIX "so")
+#    else()
+#        set(LIB_SUFFIX "a")
+#    endif()
     set_target_properties(libzmq PROPERTIES
         IMPORTED_LOCATION "${BINARY_DIR}/lib/libzmq.so"
         INTERFACE_INCLUDE_DIRECTORIES "${ZMQ_INCLUDE_DIR}"
