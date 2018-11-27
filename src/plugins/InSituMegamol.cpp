@@ -560,7 +560,7 @@ InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_timeoutCheck(bool con
 bool InSituMegamol::ZmqManager::triggerUpdate(std::string fname) {
     InSituMegamol::ISM_SYNC_STATUS ismStatus = ISM_SYNC_SYNCHRONIZING;
     std::stringstream msg;
-    msg << "mmSetParamGroupValue(\"ls1_group\", \"" << "::dat" << "::filename\", \"" << fname << "\")";
+    msg << "mmSetParamValue(\"::dat::filename\", \"" << fname << "\")";
     global_log->set_mpi_output_all();
     global_log->info() << " send msg:\n" << msg.str() << std::endl;
     global_log->set_mpi_output_root();
