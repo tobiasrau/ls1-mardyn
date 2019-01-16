@@ -1,5 +1,6 @@
 # autopas library
 option(ENABLE_AUTOPAS "Use autopas library" OFF)
+option(GIT_SUBMODULES_SSH "Use SSH for git submodules instead of HTTPS" OFF)
 if(ENABLE_AUTOPAS)
     message(STATUS "Using AutoPas.")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMARDYN_AUTOPAS")
@@ -7,10 +8,16 @@ if(ENABLE_AUTOPAS)
     # Enable ExternalProject CMake module
     include(ExternalProject)
 
+    # Select https (default) or ssh path.
+    set(autopasRepoPath https://github.com/AutoPas/AutoPas.git)
+    if(GIT_SUBMODULES_SSH)
+        set(autopasRepoPath git@github.com:AutoPas/AutoPas.git)
+    endif()
+
     # Download and install autopas
     ExternalProject_Add(
             autopas
-            GIT_REPOSITORY https://github.com/AutoPas/AutoPas.git
+            GIT_REPOSITORY ${autopasRepoPath}
             GIT_TAG origin/master
             #URL https://github.com/AutoPas/AutoPas/archive/0c3d8b07a2e38940057fafd21b98645cb074e729.zip # zip option
             #${CMAKE_SOURCE_DIR}/libs/googletest-master.zip # bundled option
@@ -25,6 +32,7 @@ if(ENABLE_AUTOPAS)
             -DBUILD_TESTS=OFF
             -DBUILD_EXAMPLES=OFF
             -DENABLE_ADDRESS_SANITIZER=${ENABLE_ADDRESS_SANITIZER}
+            -DOPENMP=${OPENMP}
     )
 
     # Get autopas source and binary directories from CMake project
@@ -34,12 +42,17 @@ if(ENABLE_AUTOPAS)
     add_library(libautopas IMPORTED STATIC GLOBAL)
     add_dependencies(libautopas autopas)
 
+    # Using target_compile_definitions for imported targets is only possible starting with cmake 3.11, so we use add_definitions here.
+    if(OPENMP)
+        add_definitions(-DAUTOPAS_OPENMP)
+    endif(OPENMP)
+
     set_target_properties(libautopas PROPERTIES
             "IMPORTED_LOCATION" "${binary_dir}/src/autopas/libautopas.a"
             "IMPORTED_LINK_INTERFACE_LIBRARIES" "${CMAKE_THREAD_LIBS_INIT}"
             )
 
-    # I couldn't make it work with INTERFACE_INCLUDE_DIRECTORIES
+    # Using INTERFACE_INCLUDE_DIRECTORIES is only possible starting with cmake 3.11, so we use include_directories here!
     include_directories(SYSTEM
             "${source_dir}/src"
             "${source_dir}/libs/spdlog-0.16.3/include"
