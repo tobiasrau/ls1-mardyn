@@ -21,7 +21,7 @@ using Log::global_log;
 #define BLOCK_POLICY_HANDSHAKE 0
 #define BLOCK_POLICY_UPDATE ZMQ_DONTWAIT
 
-void InSitu::MmpldWriter::_createFnames(int const rank, int const size, RingBuffer& buffer){
+void InSitu::MmpldWriter::_createFnames(int const rank, int const size, RingBuffer& buffer) {
     std::stringstream fname;
     for (size_t i=0; i<size; ++i) {
         fname << "/dev/shm/part_rnk" << std::setfill('0') << std::setw(6) << rank 
