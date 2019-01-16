@@ -16,27 +16,34 @@
 
 using Log::global_log;
 
+#define USE_MMPLD
 #ifdef ENABLE_INSITU
 #define BLOCK_POLICY_HANDSHAKE 0
 #define BLOCK_POLICY_UPDATE ZMQ_DONTWAIT
 
-InSituMegamol::InSituMegamol(void) 
+void InSitu::MmpldWriter::_createFnames(int const rank, int const size, std::vector<std::string>& buffer){
+
+}
+
+InSitu::InSituMegamol::InSituMegamol(void) 
         : _isEnabled(false) {
     constexpr bool uint64_tIsSize_t = std::is_same<uint64_t, size_t>::value;
     mardyn_assert(uint64_tIsSize_t);
 }
 
-void InSituMegamol::init(ParticleContainer* particleContainer,
+void InSitu::InSituMegamol::init(ParticleContainer* particleContainer,
         DomainDecompBase* domainDecomp, Domain* domain) {
+    if (_fileFormat.compare("mmpld") == 0)
+        _fileWriter = unique_ptr<FileWriterInterface>(new MmpldWriter);
     _zmqManager.setConnection(_connectionName);	
     _zmqManager.setReplyBufferSize(_replyBufferSize);
     _zmqManager.setSyncTimeout(_syncTimeout);
     _zmqManager.setModuleNames(domainDecomp->getRank());
-    _createFnameRingBuffer(domainDecomp->getRank(), _ringBufferSize);
+    _fileWriter->_createFnames(domainDecomp->getRank(), _ringBufferSize, _fnameRingBuffer);
     _isEnabled = _zmqManager.performHandshake();
 }
 
-void InSituMegamol::readXML(XMLfileUnits& xmlconfig) {
+void InSitu::InSituMegamol::readXML(XMLfileUnits& xmlconfig) {
     _snapshotInterval = 20;
     xmlconfig.getNodeValue("snapshotInterval", _snapshotInterval);
     global_log->info() << "    ISM: Snapshot interval: "
@@ -57,14 +64,22 @@ void InSituMegamol::readXML(XMLfileUnits& xmlconfig) {
     xmlconfig.getNodeValue("ringBufferSize", _ringBufferSize);
     global_log->info() << "    ISM: Ring buffer size: "
             << _ringBufferSize << std::endl;
+    _sphereRadius = 1.0;
+    xmlconfig.getNodeValue("sphereRadius", _sphereRadius);
+    global_log->info() << "    ISM: Sphere radius: "
+            << _sphereRadius << std::endl;
+    _fileFormat = "mmpld";
+    xmlconfig.getNodeValue("fileFormat", _fileFormat);
+    global_log->info() << "    ISM: File format: "
+            << _fileFormat << std::endl;
 }
 
-void InSituMegamol::beforeEventNewTimestep(
+void InSitu::InSituMegamol::beforeEventNewTimestep(
         ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
         unsigned long simstep) {
 }
 
-void InSituMegamol::beforeForces(
+void InSitu::InSituMegamol::beforeForces(
         ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
         unsigned long simstep) {
     _startForceCalculation = std::chrono::high_resolution_clock::now();
@@ -74,7 +89,7 @@ void InSituMegamol::beforeForces(
             << std::endl;
 }
 
-void InSituMegamol::afterForces(
+void InSitu::InSituMegamol::afterForces(
         ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
         unsigned long simstep) {
     _endForceCalculation = std::chrono::high_resolution_clock::now();
@@ -84,7 +99,7 @@ void InSituMegamol::afterForces(
             << std::endl;
 }
 
-void InSituMegamol::endStep(ParticleContainer* particleContainer,
+void InSitu::InSituMegamol::endStep(ParticleContainer* particleContainer,
         DomainDecompBase* domainDecomp, Domain* domain, unsigned long simstep) {
     if (!(simstep % _snapshotInterval)) {
         if (!_isEnabled) {
@@ -103,6 +118,7 @@ void InSituMegamol::endStep(ParticleContainer* particleContainer,
         float simTime = static_cast<float>(global_simulation->getSimulationTime());
         //build data lists
         std::vector< std::vector<char> > particleLists;
+        //generate the mmpld format and dump it to /dev/shm
         particleLists.push_back(_buildMmpldDataList(particleContainer));
         //generate seekTable
         std::vector<char> seekTable = _generateMmpldSeekTable(particleLists);
@@ -115,17 +131,10 @@ void InSituMegamol::endStep(ParticleContainer* particleContainer,
         _addMmpldFrame(particleLists);
         mardyn_assert(*reinterpret_cast<size_t*>(seekTable.data()+sizeof(size_t)) == _mmpldBuffer.size());
         std::string fname = _writeMmpldBuffer(domainDecomp->getRank(), simstep);
-        auto end = std::chrono::high_resolution_clock::now();
-        //_addTimerEntry("COPYMEM", simstep, std::chrono::duration<double>(end-start).count());
-        global_log->info() << "    ISM: copy: " << std::chrono::duration<double>(end-start).count() << std::endl;
-        start = std::chrono::high_resolution_clock::now();
-        _zmqManager.triggerUpdate(fname);
-        end = std::chrono::high_resolution_clock::now();
-        global_log->info() << "    ISM: update: " << std::chrono::duration<double>(end-start).count() << std::endl;
     }
 }
 
-std::vector<char> InSituMegamol::_generateMmpldSeekTable(std::vector< std::vector<char> >& particleLists) {
+std::vector<char> InSitu::InSituMegamol::_generateMmpldSeekTable(std::vector< std::vector<char> >& particleLists) {
     size_t const headerSize = 60;
     // seek table contains exactly 2 uint64_t, the start of the frame and the end
     size_t frameStart = 60+2*sizeof(size_t);
@@ -147,11 +156,11 @@ std::vector<char> InSituMegamol::_generateMmpldSeekTable(std::vector< std::vecto
     return seekTable;
 }
 
-void InSituMegamol::_resetMmpldBuffer(void) {
+void InSitu::InSituMegamol::_resetMmpldBuffer(void) {
     _mmpldBuffer.clear();
 }
 
-void InSituMegamol::_addMmpldHeader(float bbox[6], float simTime) {
+void InSitu::InSituMegamol::_addMmpldHeader(float bbox[6], float simTime) {
     /// add the standard header data here
     std::string magicId("MMPLD");
     std::copy(magicId.begin(), magicId.end(), std::back_inserter(_mmpldBuffer));
@@ -180,11 +189,11 @@ void InSituMegamol::_addMmpldHeader(float bbox[6], float simTime) {
     mardyn_assert(_mmpldBuffer.size() == 60);
 }
 
-void InSituMegamol::_addMmpldSeekTable(std::vector<char> seekTable) {
+void InSitu::InSituMegamol::_addMmpldSeekTable(std::vector<char> seekTable) {
     std::copy(seekTable.begin(), seekTable.end(), std::back_inserter(_mmpldBuffer));
 }
 
-void InSituMegamol::_addMmpldFrame(std::vector< std::vector<char> > particleLists) {
+void InSitu::InSituMegamol::_addMmpldFrame(std::vector< std::vector<char> > particleLists) {
     unsigned int numLists = static_cast<unsigned int>(particleLists.size());
     std::copy(reinterpret_cast<char*>(&numLists),
               reinterpret_cast<char*>(&numLists)+sizeof(float),
@@ -194,17 +203,17 @@ void InSituMegamol::_addMmpldFrame(std::vector< std::vector<char> > particleList
     }
 }
 
-std::vector<char> InSituMegamol::_buildMmpldDataList(ParticleContainer* particleContainer) {
+std::vector<char> InSitu::InSituMegamol::_buildMmpldDataList(ParticleContainer* particleContainer) {
     // add list header
     std::vector<char> dataList;
     dataList.push_back(1); //vertex type
     dataList.push_back(0); //color type
-#warning Most particle list meta data is hardcoded (e.g. radius, global color)
     // insert global radius
-    float radius = 1.0f;
+    float radius = _sphereRadius;
     std::copy(reinterpret_cast<char*>(&radius),
               reinterpret_cast<char*>(&radius)+sizeof(float),
               std::back_inserter(dataList));
+
     // dummies for Global RGB Color, insert 0.8*255 4 times for RGBA.
     dataList.insert(dataList.end(), 4, static_cast<unsigned char>(0.8*255.0));
 
@@ -231,12 +240,10 @@ std::vector<char> InSituMegamol::_buildMmpldDataList(ParticleContainer* particle
     return dataList;
 }
 
-std::string InSituMegamol::_writeMmpldBuffer(int rank, unsigned long simstep) {
+std::string InSitu::InSituMegamol::_writeMmpldBuffer(int rank, unsigned long simstep) {
     // all data should be stored, fill in post-data-collection values
     ofstream mmpldFile;
     // std::stringstream fname;
-    // fname << "/dev/shm/part_rnkI" << std::setfill('0') << std::setw(6) << rank 
-    // 		<< "_T" << std::setfill('0') << std::setw(7) << simstep << ".mmpld";
     std::string fname(_getNextFname());
     mmpldFile.open(fname, std::ios::binary | std::ios::trunc);
     mmpldFile.write(_mmpldBuffer.data(), _mmpldBuffer.size());
@@ -245,7 +252,7 @@ std::string InSituMegamol::_writeMmpldBuffer(int rank, unsigned long simstep) {
     return fname;
 }
 
-void InSituMegamol::_createFnameRingBuffer(int const rank, int const size) {
+void InSitu::InSituMegamol::_createFnameRingBuffer(int const rank, int const size) {
     std::stringstream fname;
     for (size_t i=0; i<_ringBufferSize; ++i) {
         fname << "/dev/shm/part_rnk" << std::setfill('0') << std::setw(6) << rank 
@@ -255,7 +262,7 @@ void InSituMegamol::_createFnameRingBuffer(int const rank, int const size) {
     }
 }
 
-std::string InSituMegamol::_getNextFname(void) {
+std::string InSitu::InSituMegamol::_getNextFname(void) {
     static RingBuffer::iterator nextFname = _fnameRingBuffer.begin();
     auto temp = nextFname;
     if (++nextFname == _fnameRingBuffer.end()) {
@@ -264,7 +271,7 @@ std::string InSituMegamol::_getNextFname(void) {
     return *temp;
 }
 
-void InSituMegamol::_addTimerEntry(std::string prefix, unsigned long simstep, double secs) {
+void InSitu::InSituMegamol::_addTimerEntry(std::string prefix, unsigned long simstep, double secs) {
     std::ofstream localLog;
     std::stringstream timerLine;
     // dump times in microseconds
@@ -276,7 +283,7 @@ void InSituMegamol::_addTimerEntry(std::string prefix, unsigned long simstep, do
     localLog.close();
 }
 
-InSituMegamol::ZmqManager::ZmqManager(void) 
+InSitu::InSituMegamol::ZmqManager::ZmqManager(void) 
         : _sendCount(0)
         , _context(zmq_ctx_new(), &zmq_ctx_destroy)
         , _requester(zmq_socket(_context.get(), ZMQ_REQ), &zmq_close) 
@@ -290,19 +297,19 @@ InSituMegamol::ZmqManager::ZmqManager(void)
     global_log->info() << "    ISM: Using ZeroMQ version: " << getZmqVersion() << std::endl;
 }
 
-InSituMegamol::ZmqManager::~ZmqManager(void) {
+InSitu::InSituMegamol::ZmqManager::~ZmqManager(void) {
     _pairsocket.reset();
     _requester.reset();
     _context.reset();
 }
 
-InSituMegamol::ZmqManager::ZmqManager(ZmqManager const& rhs)
+InSitu::InSituMegamol::ZmqManager::ZmqManager(ZmqManager const& rhs)
         : _context(zmq_ctx_new(), &zmq_ctx_destroy)
         , _requester(zmq_socket(_context.get(), ZMQ_REQ), &zmq_close) 
         , _pairsocket(zmq_socket(_context.get(), ZMQ_PAIR), &zmq_close) {
 }
 
-std::string InSituMegamol::ZmqManager::getZmqVersion(void) const {
+std::string InSitu::InSituMegamol::ZmqManager::getZmqVersion(void) const {
     std::stringstream version;
     version << ZMQ_VERSION_MAJOR << "."
             << ZMQ_VERSION_MINOR << "."
@@ -310,7 +317,7 @@ std::string InSituMegamol::ZmqManager::getZmqVersion(void) const {
     return version.str();
 }
 
-void InSituMegamol::ZmqManager::setConnection(std::string connectionName) {
+void InSitu::InSituMegamol::ZmqManager::setConnection(std::string connectionName) {
     if (zmq_connect(_requester.get(), connectionName.data())) {
         global_log->info() << "    ISM: Requester connection failed, releasing resources." << std::endl;
         // TODO: propagate plugin shutdown;
@@ -318,7 +325,7 @@ void InSituMegamol::ZmqManager::setConnection(std::string connectionName) {
     global_log->info() << "    ISM: Requester initialized." << std::endl;
 }
 
-int InSituMegamol::ZmqManager::setPairConnection(std::string connectionName) {
+int InSitu::InSituMegamol::ZmqManager::setPairConnection(std::string connectionName) {
     if (zmq_connect(_pairsocket.get(), connectionName.data())) {
         auto connectErrno = errno;
         global_log->info() << "    ISM: Pair connection failed, releasing resources." << std::endl;
@@ -331,13 +338,13 @@ int InSituMegamol::ZmqManager::setPairConnection(std::string connectionName) {
     }
 }
 
-void InSituMegamol::ZmqManager::setModuleNames(int rank) {
+void InSitu::InSituMegamol::ZmqManager::setModuleNames(int rank) {
     _datTag << "::dat" << std::setfill('0') << std::setw(6) << rank;
     _geoTag << "::geo" << std::setfill('0') << std::setw(6) << rank;
     _concatTag << "::concat" << std::setfill('0') << std::setw(6) << rank;
 }
 
-bool InSituMegamol::ZmqManager::performHandshake(void) {
+bool InSitu::InSituMegamol::ZmqManager::performHandshake(void) {
     // get pair port
     InSituMegamol::ISM_SYNC_STATUS ismStatus = ISM_SYNC_SYNCHRONIZING;
     global_log->info() << "    ISM: Connecting via requester..." << std::endl;
@@ -417,7 +424,7 @@ bool InSituMegamol::ZmqManager::performHandshake(void) {
     return true;
 }
 
-InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_getMegamolPairPort(void) {
+InSitu::InSituMegamol::ISM_SYNC_STATUS InSitu::InSituMegamol::ZmqManager::_getMegamolPairPort(void) {
     std::string msg("Requesting Port!");
     std::string reply;
     std::stringstream statusStr("");
@@ -466,7 +473,7 @@ InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_getMegamolPairPort(vo
     return InSituMegamol::ISM_SYNC_UNKNOWN_ERROR;
 }
 
-InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_recvCreationMessageAck(void) {
+InSitu::InSituMegamol::ISM_SYNC_STATUS InSitu::InSituMegamol::ZmqManager::_recvCreationMessageAck(void) {
     std::string reply;
     std::stringstream statusStr("");
     int replySize = zmq_recv(_pairsocket.get(), _replyBuffer.data(), _replyBufferSize, ZMQ_DONTWAIT);
@@ -490,7 +497,7 @@ InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_recvCreationMessageAc
     return InSituMegamol::ISM_SYNC_UNKNOWN_ERROR;
 }
 
-InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_waitOnMegamolModules(void) {
+InSitu::InSituMegamol::ISM_SYNC_STATUS InSitu::InSituMegamol::ZmqManager::_waitOnMegamolModules(void) {
     std::string msg("return mmListModules()");
     std::string reply;
     std::stringstream statusStr("");
@@ -537,7 +544,7 @@ InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_waitOnMegamolModules(
     return InSituMegamol::ISM_SYNC_UNKNOWN_ERROR;
 }
 
-InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_timeoutCheck(bool const reset) const {
+InSitu::InSituMegamol::ISM_SYNC_STATUS InSitu::InSituMegamol::ZmqManager::_timeoutCheck(bool const reset) const {
     static int iterationCounter = 0;
     if (reset) {
         iterationCounter = 0;
@@ -557,10 +564,10 @@ InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_timeoutCheck(bool con
     }
 }
 
-bool InSituMegamol::ZmqManager::triggerUpdate(std::string fname) {
+bool InSitu::InSituMegamol::ZmqManager::triggerUpdate(std::string fname) {
     InSituMegamol::ISM_SYNC_STATUS ismStatus = ISM_SYNC_SYNCHRONIZING;
     std::stringstream msg;
-    msg << "mmSetParamValue(\"::dat::filename\", \"" << fname << "\")";
+    msg << "mmSetParamValue(\"::insitu::dat::filename\", \"" << fname << "\")";
     global_log->set_mpi_output_all();
     global_log->info() << " send msg:\n" << msg.str() << std::endl;
     global_log->set_mpi_output_root();
@@ -574,7 +581,7 @@ bool InSituMegamol::ZmqManager::triggerUpdate(std::string fname) {
     return false;
 }
 
-InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_recvFileAck(void) {
+InSitu::InSituMegamol::ISM_SYNC_STATUS InSitu::InSituMegamol::ZmqManager::_recvFileAck(void) {
     std::stringstream statusStr;
     int replySize = zmq_recv(_pairsocket.get(), _replyBuffer.data(), _replyBufferSize, BLOCK_POLICY_HANDSHAKE);
     if (replySize > _replyBufferSize) {
@@ -606,7 +613,7 @@ InSituMegamol::ISM_SYNC_STATUS InSituMegamol::ZmqManager::_recvFileAck(void) {
     return ISM_SYNC_UNKNOWN_ERROR;
 }
 
-int InSituMegamol::ZmqManager::_send(std::string msg, int blockPolicy) {
+int InSitu::InSituMegamol::ZmqManager::_send(std::string msg, int blockPolicy) {
     int status;
     // global_log->info() << "    ISM: _sendCount: " << _sendCount << std::endl;
     // while (_sendCount > 0) {
@@ -623,7 +630,7 @@ int InSituMegamol::ZmqManager::_send(std::string msg, int blockPolicy) {
     return status;
 }
 
-int InSituMegamol::ZmqManager::_recv(int blockPolicy) {
+int InSitu::InSituMegamol::ZmqManager::_recv(int blockPolicy) {
     int status = zmq_recv(_pairsocket.get(), _replyBuffer.data(), _replyBufferSize, blockPolicy);
     if (status != -1) {
         --_sendCount;
@@ -632,7 +639,7 @@ int InSituMegamol::ZmqManager::_recv(int blockPolicy) {
 }
 #else
 
-InSituMegamol::InSituMegamol(void) {
+InSitu::InSituMegamol::InSituMegamol(void) {
     global_log->info() << "InSituMegamol: This is a just a dummy."
             << "Set INSITU=1 on make command line to enable the actual plugin."
             << std::endl;

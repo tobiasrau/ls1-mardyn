@@ -77,7 +77,7 @@ void PluginFactory<PluginBase>::registerDefaultPlugins(){
     REGISTER_PLUGIN(HaloParticleWriter);
     REGISTER_PLUGIN(InMemoryCheckpointing);
 #ifdef ENABLE_INSITU
-    REGISTER_PLUGIN(InSituMegamol);
+    REGISTER_PLUGIN(InSitu::InSituMegamol);
 #endif
     REGISTER_PLUGIN(SpatialProfile);
     REGISTER_PLUGIN(LoadbalanceWriter);

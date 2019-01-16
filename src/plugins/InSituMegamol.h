@@ -29,12 +29,29 @@ class Snapshot;
 
 #ifdef ENABLE_INSITU
 #include "zmq.h"
-
+namespace InSitu {
 //typedef void to easily identify the ZMQ components (which are all essentially pointers to some stuff)
 typedef void ZmqContext;
 typedef void ZmqRequest;
 typedef void ZmqPublish;
 typedef std::vector<std::string> RingBuffer;
+
+class FileWriterInterface {
+public:
+    virtual void _resetBuffer(void) = 0;
+    virtual std::string _getNextFname(void) = 0;
+    virtual std::string _writeBuffer(int rank, unsigned long simstep) = 0;
+    virtual void _createFnames(int const rank, int const size, RingBuffer& buffer) = 0;
+};
+
+class MmpldWriter : public FileWriterInterface {
+public:
+    void _resetBuffer(void) {};
+    std::string _getNextFname(void) {return "";};
+    std::string _writeBuffer(int rank, unsigned long simstep) {return "";};
+    void _createFnames(int const rank, int const size, RingBuffer& buffer);
+private:
+};
 
 class InSituMegamol: public PluginBase {
     /**
@@ -256,6 +273,8 @@ private:
     int _replyBufferSize;
     int _ringBufferSize;
     int _syncTimeout;
+    float _sphereRadius;
+    std::string _fileFormat;
     std::string _connectionName;
 
     //other setup functions
@@ -281,13 +300,16 @@ private:
     void _addMmpldFrame(std::vector< std::vector<char> > dataLists);
     std::string _writeMmpldBuffer(int rank, unsigned long simstep);
 
+    std::unique_ptr<FileWriterInterface> _fileWriter;
     std::vector<char> _mmpldBuffer;
     std::vector<char>::iterator _mmpldSize;
     RingBuffer _fnameRingBuffer;
     ZmqManager _zmqManager;
     bool _isEnabled;
 };
+}
 #else //ENABLE_INSITU
+namespace InSitu {
 class InSituMegamol: public PluginBase {
 public:
     InSituMegamol(); 
@@ -331,5 +353,6 @@ public:
 
     static PluginBase* createInstance() { return new InSituMegamol(); }
 };
+}
 #endif // ENABLE_INSITU
 #endif /* SRC_PLUGINS_REDUNDANCYRESILIENCE_H_ */
