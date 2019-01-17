@@ -29,8 +29,12 @@ void InSitu::FileWriterInterface::_resetBuffer(void) {
 void InSitu::MmpldWriter::_createFnames(int const rank, int const size) {
     std::stringstream fname;
     for (size_t i=0; i<size; ++i) {
-        fname << "/dev/shm/part_rnk" << std::setfill('0') << std::setw(6) << rank 
+        fname << "/dev/shm/part_rnk" 
+                << std::setfill('0') << std::setw(6) << rank 
                 << "_buf" << std::setfill('0') << std::setw(2) << i << ".mmpld";
+        // fname << "/home1/05799/fernanor/setups/insitu/part_rnk" 
+        //         << std::setfill('0') << std::setw(6) << rank 
+        //         << "_buf" << std::setfill('0') << std::setw(2) << i << ".mmpld";
         _fnameRingBuffer.push_back(fname.str());
         fname.str("");
     }
