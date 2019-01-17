@@ -29,31 +29,49 @@ class Snapshot;
 
 #ifdef ENABLE_INSITU
 #include "zmq.h"
+#include "InSituWriter.h"
 namespace InSitu {
 //typedef void to easily identify the ZMQ components (which are all essentially pointers to some stuff)
 typedef void ZmqContext;
 typedef void ZmqRequest;
 typedef void ZmqPublish;
 typedef std::vector<std::string> RingBuffer;
-
+/*
 class FileWriterInterface {
 public:
-    virtual void _resetBuffer(void) = 0;
-    virtual std::string _getNextFname(void) = 0;
-    virtual std::string _writeBuffer(int rank, unsigned long simstep) = 0;
-    virtual void _createFnames(int const rank, int const size, RingBuffer& buffer) = 0;
+    //these need to be implemented
+    virtual void _addParticleData(
+        ParticleContainer* particleContainer,
+        float const bbox[6],
+        float const simTime) = 0;
+    virtual std::string _writeBuffer(void) = 0;
+    virtual void _createFnames(int const rank, int const size) = 0;
+protected:
+    std::vector<char> _buffer;
+    void _resetBuffer(void);
+    std::string _getNextFname(void);
+    RingBuffer _fnameRingBuffer;
 };
 
 class MmpldWriter : public FileWriterInterface {
 public:
-    void _resetBuffer(void) {};
-    std::string _getNextFname(void) {return "";};
-    std::string _writeBuffer(int rank, unsigned long simstep) {return "";};
-    void _createFnames(int const rank, int const size, RingBuffer& buffer);
+    void _addParticleData(
+        ParticleContainer* particleContainer,
+        float const bbox[6],
+        float const simTime) override;
+    std::string _writeBuffer(void) override;
+    void _createFnames(int const rank, int const size) override;
 private:
+    std::vector<char> _generateMmpldSeekTable(std::vector< std::vector<char> >& dataLists);
+    std::vector<char> _buildMmpldDataList(ParticleContainer* particleContainer);
+    // serialize all
+    void _addMmpldHeader(float const bbox[6]);
+    void _addMmpldSeekTable(std::vector<char> seekTable);
+    void _addMmpldFrame(std::vector< std::vector<char> > dataLists);
+    std::string _writeMmpldBuffer(int rank, unsigned long simstep);
 };
-
-class InSituMegamol: public PluginBase {
+*/
+class InSituMegamol : public PluginBase {
     /**
      * @brief Sync status return 
      * 
@@ -280,10 +298,6 @@ private:
     //other setup functions
     void _createFnameRingBuffer(int const rank, int const size);
 
-    //gather data
-    std::vector<char> _generateMmpldSeekTable(std::vector< std::vector<char> >& dataLists);
-    std::vector<char> _buildMmpldDataList(ParticleContainer* particleContainer);
-
     //per node performance logging
     std::string _localLogFname;
     void _addTimerEntry(std::string prefix, unsigned long simstep, double secs);
@@ -292,16 +306,17 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> _startForceCalculation;
     std::chrono::time_point<std::chrono::high_resolution_clock> _endForceCalculation;
 
+    //gather data
+    std::vector<char> _generateMmpldSeekTable(std::vector< std::vector<char> >& dataLists);
+    std::vector<char> _buildMmpldDataList(ParticleContainer* particleContainer);
     // serialize all
     void _resetMmpldBuffer(void);
     std::string _getNextFname(void);
     void _addMmpldHeader(float* bbox, float simTime);
     void _addMmpldSeekTable(std::vector<char> seekTable);
     void _addMmpldFrame(std::vector< std::vector<char> > dataLists);
-    std::string _writeMmpldBuffer(int rank, unsigned long simstep);
 
     std::unique_ptr<FileWriterInterface> _fileWriter;
-    std::vector<char> _mmpldBuffer;
     std::vector<char>::iterator _mmpldSize;
     RingBuffer _fnameRingBuffer;
     ZmqManager _zmqManager;
