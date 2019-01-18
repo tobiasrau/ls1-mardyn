@@ -1,8 +1,9 @@
 # mpi
 option(ENABLE_INSITU "Enables Insitu Plugin, to be used in conjunction with Megamol" OFF)
 if(ENABLE_INSITU)
-message(STATUS "Insitu Enabled")
-message(STATUS "Installing ZMQ.")
+    message(STATUS "Insitu Enabled")
+    message(STATUS "Installing ZMQ.")
+    option(ENABLE_ADIOS2 "Enables the ADIOS2 writer type." ON)
     ## set linkage for hazelhen
     if($ENV{CRAYPE_LINK_TYPE})
         set(LINK_TYPE $ENV{CRAYPE_LINK_TYPE})

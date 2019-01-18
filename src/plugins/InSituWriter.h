@@ -15,6 +15,9 @@
 
 #include "PluginBase.h"
 #include "molecules/MoleculeForwardDeclaration.h"
+#ifdef ENABLE_ADIOS2
+#include "adios2.h"
+#endif
 
 #include <fstream>
 #include <vector>
@@ -30,8 +33,8 @@ public:
         ParticleContainer* particleContainer,
         float const bbox[6],
         float const simTime) = 0;
-    virtual std::string _writeBuffer(void) = 0;
     virtual void _createFnames(int const rank, int const size) = 0;
+    std::string _writeBuffer(void);
 protected:
     std::vector<char> _buffer;
     void _resetBuffer(void);
@@ -45,7 +48,6 @@ public:
         ParticleContainer* particleContainer,
         float const bbox[6],
         float const simTime) override;
-    std::string _writeBuffer(void) override;
     void _createFnames(int const rank, int const size) override;
 private:
     std::vector<char> _generateMmpldSeekTable(std::vector< std::vector<char> >& dataLists);
@@ -54,8 +56,20 @@ private:
     void _addMmpldHeader(float const bbox[6]);
     void _addMmpldSeekTable(std::vector<char> seekTable);
     void _addMmpldFrame(std::vector< std::vector<char> > dataLists);
-    std::string _writeMmpldBuffer(int rank, unsigned long simstep);
 };
+
+#ifdef ENABLE_ADIOS2
+class AdiosWriter : public FileWriterInterface {
+public:
+    void _addParticleData(
+        ParticleContainer* particleContainer,
+        float const bbox[6],
+        float const simTime) override;
+    void _createFnames(int const rank, int const size) override;
+private:
+
+};
+#endif /* ENABLE_ADIOS2 */
 }
-#endif // ENABLE_INSITU
+#endif /* ENABLE_INSITU */
 #endif /* SRC_PLUGINS_INSITUWRITER_H_ */

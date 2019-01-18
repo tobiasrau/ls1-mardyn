@@ -493,7 +493,7 @@ int InSitu::InSituMegamol::ZmqManager::_recv(int blockPolicy) {
 
 InSitu::InSituMegamol::InSituMegamol(void) {
     global_log->info() << "InSituMegamol: This is a just a dummy."
-            << "Set INSITU=1 on make command line to enable the actual plugin."
+            << "Set ENABLE_INSITU=ON in cmake options to enable the actual plugin."
             << std::endl;
 }
 

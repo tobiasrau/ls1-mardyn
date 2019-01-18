@@ -58,6 +58,9 @@ include(autopas)
 # ----- add insitu dependencies
 include(insitu)
 
+# ----- add adios2 dependency
+include(adios)
+
 # add mardyn
 ADD_SUBDIRECTORY(src)
 

@@ -1,7 +1,7 @@
 /*
- * InSituMegamol.h
+ * InSituWriter.h
  *
- *  Created on: 19 Jul 2018
+ *  Created on: 17 Jan 2019
  *      Author: Oliver Fernandes
  */
 
@@ -25,7 +25,18 @@ void InSitu::FileWriterInterface::_resetBuffer(void) {
     _buffer.clear();
 }
 
-////mmpld implementation of file writer interface
+std::string InSitu::FileWriterInterface::_writeBuffer(void) {
+    std::ofstream filestream;
+    // std::stringstream fname;
+    std::string fname(_getNextFname());
+    filestream.open(fname, std::ios::binary | std::ios::trunc);
+    filestream.write(_buffer.data(), _buffer.size());
+    filestream.close();
+    global_log->info() << "    ISM: Shared memory file written." << std::endl;
+    return fname;
+}
+
+////mmpld implementation of mmpld writer
 void InSitu::MmpldWriter::_createFnames(int const rank, int const size) {
     std::stringstream fname;
     for (size_t i=0; i<size; ++i) {
@@ -38,17 +49,6 @@ void InSitu::MmpldWriter::_createFnames(int const rank, int const size) {
         _fnameRingBuffer.push_back(fname.str());
         fname.str("");
     }
-}
-
-std::string InSitu::MmpldWriter::_writeBuffer(void) {
-    std::ofstream filestream;
-    // std::stringstream fname;
-    std::string fname(_getNextFname());
-    filestream.open(fname, std::ios::binary | std::ios::trunc);
-    filestream.write(_buffer.data(), _buffer.size());
-    filestream.close();
-    global_log->info() << "    ISM: Shared memory file written." << std::endl;
-    return fname;
 }
 
 void InSitu::MmpldWriter::_addParticleData(
@@ -172,4 +172,28 @@ std::vector<char> InSitu::MmpldWriter::_buildMmpldDataList(ParticleContainer* pa
     }
     return dataList;
 }
+
+#ifdef ENABLE_ADIOS2
+void InSitu::AdiosWriter::_addParticleData(
+        ParticleContainer* particleContainer,
+        float const bbox[6],
+        float const simTime) {
+    
+}
+
+void InSitu::AdiosWriter::_createFnames(int const rank, int const size) {
+    std::stringstream fname;
+    for (size_t i=0; i<size; ++i) {
+        // fname << "/dev/shm/part_rnk" 
+        //         << std::setfill('0') << std::setw(6) << rank 
+        //         << "_buf" << std::setfill('0') << std::setw(2) << i << ".adios";
+        fname << "/home1/05799/fernanor/setups/insitu/part_rnk" 
+                << std::setfill('0') << std::setw(6) << rank 
+                << "_buf" << std::setfill('0') << std::setw(2) << i << ".adios";
+        _fnameRingBuffer.push_back(fname.str());
+        fname.str("");
+    }
+}
+#endif
+
 #endif //ENABLE_INSITU

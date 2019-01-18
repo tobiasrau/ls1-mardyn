@@ -60,6 +60,7 @@ TARGET_LINK_LIBRARIES(MarDyn
         ${CPPUNIT_LIB} # for unit tests
         ${autopas_lib} # for autopas
 	    libzmq         # for insitu plugin. Need to add "real" target to ensure dependency resolving during parallel compile
+	    libadios2      # for adios2 dependency
         )
 
 ADD_TEST(
