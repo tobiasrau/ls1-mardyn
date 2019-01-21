@@ -34,6 +34,9 @@ public:
         float const bbox[6],
         float const simTime) = 0;
     virtual void _createFnames(int const rank, int const size) = 0;
+
+    //shared by all writers
+    static std::unique_ptr<FileWriterInterface> create(std::string writer);
     std::string _writeBuffer(void);
 protected:
     std::vector<char> _buffer;
@@ -61,13 +64,14 @@ private:
 #ifdef ENABLE_ADIOS2
 class AdiosWriter : public FileWriterInterface {
 public:
+    AdiosWriter();
     void _addParticleData(
         ParticleContainer* particleContainer,
         float const bbox[6],
         float const simTime) override;
     void _createFnames(int const rank, int const size) override;
 private:
-
+    std::unique_ptr<adios2::ADIOS> _adios;
 };
 #endif /* ENABLE_ADIOS2 */
 }

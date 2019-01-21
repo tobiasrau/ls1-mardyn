@@ -29,14 +29,22 @@ InSitu::InSituMegamol::InSituMegamol(void)
 
 void InSitu::InSituMegamol::init(ParticleContainer* particleContainer,
         DomainDecompBase* domainDecomp, Domain* domain) {
-    if (_fileFormat.compare("mmpld") == 0)
-        _fileWriter = std::unique_ptr<FileWriterInterface>(new MmpldWriter);
+    _isEnabled = true;
     _zmqManager.setConnection(_connectionName);	
     _zmqManager.setReplyBufferSize(_replyBufferSize);
     _zmqManager.setSyncTimeout(_syncTimeout);
     _zmqManager.setModuleNames(domainDecomp->getRank());
+    _isEnabled &= _zmqManager.performHandshake();
+    try { 
+        _fileWriter = InSitu::FileWriterInterface::create(_fileFormat);
+    }
+    catch (std::invalid_argument const ia) {
+        //writer aquisition failed, disable the plugin
+        global_log->warning() << ia.what() << std::endl;
+        _isEnabled = false;
+        return;
+    }
     _fileWriter->_createFnames(domainDecomp->getRank(), _ringBufferSize);
-    _isEnabled = _zmqManager.performHandshake();
 }
 
 void InSitu::InSituMegamol::readXML(XMLfileUnits& xmlconfig) {

@@ -284,6 +284,7 @@ private:
 
     std::unique_ptr<FileWriterInterface> _fileWriter;
     std::vector<char>::iterator _mmpldSize;
+    RingBuffer _fnameRingBuffer;
     ZmqManager _zmqManager;
     bool _isEnabled;
 };

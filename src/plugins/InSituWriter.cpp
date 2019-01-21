@@ -12,6 +12,22 @@ using Log::global_log;
 
 #ifdef ENABLE_INSITU
 ////file writer interface
+
+std::unique_ptr<InSitu::FileWriterInterface> InSitu::FileWriterInterface::create(std::string writer) {
+    if (writer.compare("mmpld") == 0) {
+        return std::unique_ptr<InSitu::FileWriterInterface>(new InSitu::MmpldWriter());
+    }
+    else
+#ifdef ENABLE_ADIOS2
+    if (writer.compare("adios") == 0) {
+        return std::unique_ptr<InSitu::FileWriterInterface>(new InSitu::AdiosWriter());
+    }
+#endif
+    // if we reach here, something went wrong
+    std::string const errormsg(" ISM: Insitu plugin error, disabling plugin > Invalid writer: "+writer);
+    throw std::invalid_argument(errormsg);
+}
+
 std::string InSitu::FileWriterInterface::_getNextFname(void) {
     static RingBuffer::iterator nextFname = _fnameRingBuffer.begin();
     auto temp = nextFname;
@@ -36,7 +52,7 @@ std::string InSitu::FileWriterInterface::_writeBuffer(void) {
     return fname;
 }
 
-////mmpld implementation of mmpld writer
+////mmpld implementation of writer
 void InSitu::MmpldWriter::_createFnames(int const rank, int const size) {
     std::stringstream fname;
     for (size_t i=0; i<size; ++i) {
@@ -173,12 +189,34 @@ std::vector<char> InSitu::MmpldWriter::_buildMmpldDataList(ParticleContainer* pa
     return dataList;
 }
 
+////adios implementation of writer
 #ifdef ENABLE_ADIOS2
+InSitu::AdiosWriter::AdiosWriter() {
+    _adios = std::unique_ptr<adios2::ADIOS>(new adios2::ADIOS());
+}
+
 void InSitu::AdiosWriter::_addParticleData(
         ParticleContainer* particleContainer,
         float const bbox[6],
         float const simTime) {
-    
+    // get input settings, here: use default settings
+    adios2::IO io = _adios->DeclareIO("Output");
+    adios2::Variable<float> varGlobalArray =
+        io.DefineVariable<float>("Position", {particleContainer->getNumberOfParticles()*3});
+    adios2::Engine engine = io.Open(_getNextFname(), adios2::Mode::Write);
+
+    // add vertex data
+    std::vector<float> dataList;
+    for (auto mol = particleContainer->iterator(); mol.isValid(); ++mol) {
+        dataList.push_back(static_cast<float>(mol->r(0)));
+        dataList.push_back(static_cast<float>(mol->r(1)));
+        dataList.push_back(static_cast<float>(mol->r(2)));
+    }
+
+    engine.BeginStep();
+    varGlobalArray.SetSelection(adios2::Box<adios2::Dims>({0},{particleContainer->getNumberOfParticles()*3}));
+    engine.Put<float>(varGlobalArray, dataList.data());
+    engine.EndStep();
 }
 
 void InSitu::AdiosWriter::_createFnames(int const rank, int const size) {
