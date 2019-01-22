@@ -15,10 +15,12 @@
 
 #include "PluginBase.h"
 #include "molecules/MoleculeForwardDeclaration.h"
+
 #ifdef ENABLE_ADIOS2
 #include "adios2.h"
 #endif
 
+#include <memory>
 #include <fstream>
 #include <vector>
 

@@ -17,7 +17,6 @@ std::unique_ptr<InSitu::FileWriterInterface> InSitu::FileWriterInterface::create
     if (writer.compare("mmpld") == 0) {
         return std::unique_ptr<InSitu::FileWriterInterface>(new InSitu::MmpldWriter());
     }
-    else
 #ifdef ENABLE_ADIOS2
     if (writer.compare("adios") == 0) {
         return std::unique_ptr<InSitu::FileWriterInterface>(new InSitu::AdiosWriter());

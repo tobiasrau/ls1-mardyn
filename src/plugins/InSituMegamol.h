@@ -2,7 +2,7 @@
  * InSituMegamol.h
  *
  *  Created on: 11 Jul 2018
- *      Author: tchipevn / Oliver Fernandes
+ *      Author: Oliver Fernandes
  */
 
 ///
@@ -141,7 +141,7 @@ class InSituMegamol : public PluginBase {
         std::stringstream _datTag; 
         std::stringstream _geoTag;
         std::stringstream _concatTag;
-         std::unique_ptr<ZmqContext, decltype(&zmq_ctx_destroy)> _context;
+        std::unique_ptr<ZmqContext, decltype(&zmq_ctx_destroy)> _context;
         std::unique_ptr<ZmqRequest, decltype(&zmq_close)> _requester;
         std::unique_ptr<ZmqPublish, decltype(&zmq_close)> _pairsocket;
     };

@@ -83,20 +83,12 @@ void InSitu::InSituMegamol::beforeForces(
         ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
         unsigned long simstep) {
     _startForceCalculation = std::chrono::high_resolution_clock::now();
-    global_log->info() 
-            << "Time between force calculations: " 
-            << std::chrono::duration<double>(_startForceCalculation - _endForceCalculation).count()
-            << std::endl;
 }
 
 void InSitu::InSituMegamol::afterForces(
         ParticleContainer* particleContainer, DomainDecompBase* domainDecomp,
         unsigned long simstep) {
     _endForceCalculation = std::chrono::high_resolution_clock::now();
-    global_log->info() 
-            << "Force calculation time: " 
-            << std::chrono::duration<double>(_endForceCalculation - _startForceCalculation).count()
-            << std::endl;
 }
 
 void InSitu::InSituMegamol::endStep(ParticleContainer* particleContainer,
@@ -119,27 +111,17 @@ void InSitu::InSituMegamol::endStep(ParticleContainer* particleContainer,
         _fileWriter->_addParticleData(particleContainer, bbox, simTime);
         std::string fname = _fileWriter->_writeBuffer();
 
-        //post update to MegaMol
+        //post update to MegaMol and log duration of copy op
         auto end = std::chrono::high_resolution_clock::now();
-        //_addTimerEntry("COPYMEM", simstep, std::chrono::duration<double>(end-start).count());
         global_log->info() << "    ISM: copy: " << std::chrono::duration<double>(end-start).count() << std::endl;
         start = std::chrono::high_resolution_clock::now();
         _zmqManager.triggerUpdate(fname);
         end = std::chrono::high_resolution_clock::now();
         global_log->info() << "    ISM: update: " << std::chrono::duration<double>(end-start).count() << std::endl;
-    }
-}
 
-void InSitu::InSituMegamol::_addTimerEntry(std::string prefix, unsigned long simstep, double secs) {
-    std::ofstream localLog;
-    std::stringstream timerLine;
-    // dump times in microseconds
-    timerLine << prefix
-            << " | T: " << std::setfill(' ') << std::setw(8) <<  simstep 
-            << " d: " << std::fixed << std::setprecision(6) << secs;
-    localLog.open(_localLogFname, std::ios::ate);
-    localLog << timerLine.str() << "\n";
-    localLog.close();
+        //dump local molecule count to log
+        global_log->info() << "    ISM: Molecule count of local data: " << particleContainer->getNumberOfParticles() << std::endl;
+    }
 }
 
 ////nested zmq manager implementation
