@@ -123,7 +123,8 @@ void InSitu::InSituMegamol::endStep(ParticleContainer* particleContainer,
         //dump local molecule count to log
         global_log->info() << "    ISM: Molecule count of local data: " << particleContainer->getNumberOfParticles() << std::endl;
         std::stringstream message;
-        message << "    " << simstep << ":" << particleContainer->getNumberOfParticles() << "\n";
+        message.str("");
+        message << "    " << simstep << ":" << particleContainer->getNumberOfParticles();
         _events->_addEvent(static_cast<TimePrecision>(simstep), message.str());
     }
 }

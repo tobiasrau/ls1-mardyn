@@ -81,7 +81,7 @@ template <typename TimePrecision, typename EventType>
 EventsBase<TimePrecision, EventType>::EventsBase(std::string fnameTag, unsigned int dumpInterval) 
         : _dumpInterval(dumpInterval) {
     ///read file name parts from environment
-    std::string nodeName, jobName;
+    std::string nodeName, jobName, resultPath;
     char* nodeName_temp = std::getenv("NODE_HOSTNAME");
     if (!nodeName_temp) {
         _isEnabled = false;
@@ -97,8 +97,17 @@ EventsBase<TimePrecision, EventType>::EventsBase(std::string fnameTag, unsigned 
     }
     else
         jobName.assign(jobName_temp);
+
+    char* resultPath_temp = std::getenv("RESULT_PATH");
+    if (!resultPath_temp) {
+        _isEnabled = false;
+        throw std::logic_error("Getting resultPath from environment failed");
+    }
+    else
+        resultPath.assign(resultPath_temp);
+
     _fname.str("");
-    _fname << jobName << "." << fnameTag << "." << nodeName << ".log";
+    _fname << resultPath << "/" << jobName << "." << fnameTag << "." << nodeName << ".log";
 
     // prepare file
     std::ofstream events;
