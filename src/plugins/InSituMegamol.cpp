@@ -45,6 +45,7 @@ void InSitu::InSituMegamol::init(ParticleContainer* particleContainer,
         return;
     }
     _fileWriter->_createFnames(domainDecomp->getRank(), _ringBufferSize);
+    _events = std::unique_ptr<StringEvents>(new StringEvents("molcount", 1));
 }
 
 void InSitu::InSituMegamol::readXML(XMLfileUnits& xmlconfig) {
@@ -99,8 +100,8 @@ void InSitu::InSituMegamol::endStep(ParticleContainer* particleContainer,
             return;
         }
         auto start = std::chrono::high_resolution_clock::now();
-        //get bbox 
-        float bbox[6] {
+        //get bbox, init it with the global bounding box, used in mmpld writer
+        float globalBBox[6] {
             0.0f, 0.0f, 0.0f,
             static_cast<float>(domain->getGlobalLength(0)),
             static_cast<float>(domain->getGlobalLength(1)),
@@ -108,7 +109,7 @@ void InSitu::InSituMegamol::endStep(ParticleContainer* particleContainer,
         };
         //convert simulation time
         float simTime = static_cast<float>(global_simulation->getSimulationTime());
-        _fileWriter->_addParticleData(particleContainer, bbox, simTime);
+        _fileWriter->_addParticleData(particleContainer, globalBBox, simTime);
         std::string fname = _fileWriter->_writeBuffer();
 
         //post update to MegaMol and log duration of copy op
@@ -121,6 +122,9 @@ void InSitu::InSituMegamol::endStep(ParticleContainer* particleContainer,
 
         //dump local molecule count to log
         global_log->info() << "    ISM: Molecule count of local data: " << particleContainer->getNumberOfParticles() << std::endl;
+        std::stringstream message;
+        message << "    " << simstep << ":" << particleContainer->getNumberOfParticles() << "\n";
+        _events->_addEvent(static_cast<TimePrecision>(simstep), message.str());
     }
 }
 

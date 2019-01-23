@@ -30,12 +30,18 @@ class Snapshot;
 #ifdef ENABLE_INSITU
 #include "zmq.h"
 #include "InSituWriter.h"
+#include "events.h"
+
 namespace InSitu {
 //typedef void to easily identify the ZMQ components (which are all essentially pointers to some stuff)
 typedef void ZmqContext;
 typedef void ZmqRequest;
 typedef void ZmqPublish;
 typedef std::vector<std::string> RingBuffer;
+
+using TimePrecision = unsigned int; ///< for Events instances
+using UIntEvents = Events<TimePrecision, unsigned int>;
+using StringEvents = Events<TimePrecision, std::string>;
 
 class InSituMegamol : public PluginBase {
     /**
@@ -287,6 +293,8 @@ private:
     RingBuffer _fnameRingBuffer;
     ZmqManager _zmqManager;
     bool _isEnabled;
+    // std::unique_ptr< UIntEvents > _eventMolCount;
+    std::unique_ptr< StringEvents > _events;
 };
 }
 #else //ENABLE_INSITU
