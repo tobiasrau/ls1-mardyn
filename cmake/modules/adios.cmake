@@ -1,3 +1,4 @@
+option(ENABLE_ADIOS2 "Enables the ADIOS2 writer type." ON)
 if(ENABLE_ADIOS2)
     message(STATUS "Installing Adios2.")
     ## set linkage for hazelhen
@@ -11,7 +12,7 @@ if(ENABLE_ADIOS2)
         endif()
     endif()
 
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_ADIOS2 ${LINK_TYPE}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_ADIOS ${LINK_TYPE}")
 
     # Enable ExternalProject CMake module
     include(ExternalProject)
@@ -55,8 +56,9 @@ if(ENABLE_ADIOS2)
 #    else()
 #        set(LIB_SUFFIX "a")
 #    endif()
+    include(GNUInstallDirs)
     set_target_properties(libadios2 PROPERTIES
-        IMPORTED_LOCATION "${BINARY_DIR}/lib/libadios2.so"
+        IMPORTED_LOCATION "${BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}/libadios2.so"
         INTERFACE_INCLUDE_DIRECTORIES "${ADIOS2_INCLUDE_DIR}"
     )
 else()

@@ -48,6 +48,10 @@
 #include "plugins/VectorizationTuner.h"
 #include "plugins/WallPotential.h"
 
+#ifdef ENABLE_ADIOS
+#include "plugins/AdiosWriter.h"
+#endif
+
 #ifdef ENABLE_INSITU
 #include "plugins/InSituMegamol.h"
 #endif
@@ -65,6 +69,9 @@ template<>
 void PluginFactory<PluginBase>::registerDefaultPlugins(){
     global_log -> debug() << "REGISTERING PLUGINS" << endl;
 
+#ifdef ENABLE_ADIOS
+    REGISTER_PLUGIN(Adios::AdiosWriter);
+#endif
     REGISTER_PLUGIN(COMaligner);
     REGISTER_PLUGIN(CavityWriter);
     REGISTER_PLUGIN(CheckpointWriter);
