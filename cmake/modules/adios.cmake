@@ -1,5 +1,5 @@
-option(ENABLE_ADIOS2 "Enables the ADIOS2 writer type." ON)
-if(ENABLE_ADIOS2)
+option(ENABLE_ADIOS "Enables the ADIOS2 writer type." ON)
+if(ENABLE_ADIOS)
     message(STATUS "Installing Adios2.")
     ## set linkage for hazelhen
     if($ENV{CRAYPE_LINK_TYPE})
