@@ -7,10 +7,8 @@
 
 #include "MDGenerator.h"
 
-#include "ensemble/GrandCanonical.h"
 #include "parallel/DomainDecompBase.h"
 #include "io/CheckpointWriter.h"
-#include "ensemble/PressureGradient.h"
 #include "particleContainer/LinkedCells.h"
 #include "Domain.h"
 
@@ -85,10 +83,8 @@ void MDGenerator::generatePreview() {
 	srand(1);
 #ifndef MARDYN
 	int rank = 0;
-	PressureGradient gradient(rank);
-	Domain domain(rank, &gradient);
+	Domain domain(rank);
 	DomainDecompBase domainDecomposition;
-	list<ChemicalPotential> lmu;
 
 	double bBoxMin[3] = { 0,0,0};
 	double bBoxMax[3] = { 0,0,0};
@@ -106,7 +102,7 @@ void MDGenerator::generatePreview() {
 
 	LinkedCells container(bBoxMin, bBoxMax, cutoffRadius);
 
-	readPhaseSpace(&container, &lmu, &domain, &domainDecomposition);
+	readPhaseSpace(&container, &domain, &domainDecomposition);
 	_logger->info() << "MDGenerator: " << container.getNumberOfParticles() << " particles were created." << endl;
 
 	auto molecule = container.iterator();
@@ -135,10 +131,8 @@ void MDGenerator::generateOutput(const std::string& directory) {
 
 	std::cout << "MDGenerator::config file written!" << endl;
 	int rank = 0;
-	PressureGradient gradient(rank);
-	Domain domain(rank, &gradient);
+	Domain domain(rank);
 	DomainDecompBase domainDecomposition;
-	list<ChemicalPotential> lmu;
 
 #ifndef MARDYN
 	global_simulation = new Simulation();
@@ -157,7 +151,7 @@ void MDGenerator::generateOutput(const std::string& directory) {
 	bBoxMax[2] = domain.getGlobalLength(2);
 	LinkedCells container(bBoxMin, bBoxMax, cutoffRadius);
 	std::cout << "MDGenerator::generateOutput before read phasespace!" << endl;
-	readPhaseSpace(&container, &lmu, &domain, &domainDecomposition);
+	readPhaseSpace(&container, &domain, &domainDecomposition);
 	std::cout << "MDGenerator::generateOutput read phasespace done!" << endl;
 	domain.setglobalNumMolecules(container.getNumberOfParticles());
 	std::cout << "NumMolecules in Container: " << container.getNumberOfParticles() << endl;

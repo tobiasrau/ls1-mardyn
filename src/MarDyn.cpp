@@ -35,12 +35,13 @@ void initOptions(optparse::OptionParser *op) {
 		"%prog --tests --test-dir <test input data directory> [<name of testcase>]");
 	op->version("%prog " + MARDYN_VERSION);
 	op->description("ls1-MarDyn (Large Scale SImulation MoleculAR DYNamics)");
-
+	op->add_option("-a", "--loop-abort-time").dest("loop-abort-time").type("float") .metavar("TIME") .set_default(-1) .help("(optional) max walltime allowed in (s) before stop of main loop (default: %default)");
 	op->add_option("-n", "--steps").dest("timesteps").type("int") .metavar("NUM") .set_default(1) .help("number of timesteps to simulate (default: %default)");
 	op->add_option("-p", "--outprefix").dest("outputprefix").type("string") .metavar("STR") .set_default("MarDyn") .help("default prefix for output files (default: %default)");
 	op->add_option("-v", "--verbose").dest("verbose").type("bool") .action("store_true") .set_default(false) .help("verbose mode: print debugging information (default: %default)");
 	op->add_option("--print-meminfo").dest("print-meminfo").type("bool").action("store_true").set_default(false).help("Print memory consumtion info (default: %default)");
 	op->add_option("--logfile").dest("logfile").type("string").metavar("PREFIX").set_default("MarDyn").help("enable output to logfile using given prefix for the filename (default: %default)");
+	op->add_option("--legacy-cell-processor").dest("legacy-cell-processor").type("bool").action("store_true").set_default(false).help("use legacyCellProcessor (AoS) (default: %default)");
 	op->add_option("--final-checkpoint").dest("final-checkpoint").type("int").metavar("(1|0)").set_default(1).help("enable/disable final checkopint (default: %default)");
 	op->add_option("--timed-checkpoint").dest("timed-checkpoint").type("float").metavar("TIME").set_default(-1).help("Execution time of the simulation in seconds after which a checkpoint is forced, disable: -1. (default: %default)");
 #ifdef ENABLE_SIGHANDLER
@@ -55,55 +56,53 @@ void initOptions(optparse::OptionParser *op) {
  * @brief Helper function outputting program build information to given logger
  */
 void program_build_info(Log::Logger *log) {
+	log->info() << "Compilation info:" << endl;
+
 	char info_str[MAX_INFO_STRING_LENGTH];
 	get_compiler_info(info_str);
-	log->info() << "Compiler: " << info_str << endl;
+	log->info() << "	Compiler:	" << info_str << endl;
 	get_compile_time(info_str);
-	log->info() << "Compiled: " << info_str << endl;
-#ifdef ENABLE_MPI
+	log->info() << "	Compiled on:	" << info_str << endl;
+	get_precision_info(info_str);
+	log->info() << "	Precision:	" << info_str << endl;
+	get_intrinsics_info(info_str);
+	log->info() << "	Intrinsics:	" << info_str << endl;
+	get_rmm_normal_info(info_str);
+	log->info() << "	RMM/normal:	" << info_str << endl;
+	get_openmp_info(info_str);
+	log->info() << "	OpenMP:		" << info_str << endl;
 	get_mpi_info(info_str);
-	log->info() << "MPI library: " << info_str << endl;
-#endif
-#if defined(MARDYN_SPSP)
-	log->info() << "Precision: Single" << endl;
-#elif defined(MARDYN_SPDP)
-	log->info() << "Precision: Mixed" << endl;
-#else
-	log->info() << "Precision: Double" << endl;
-#endif
-#if defined(_OPENMP)
-	log->info() << "Compiled with OpenMP support" << endl;
-#endif
+	log->info() << "	MPI:		" << info_str << endl;
 }
 
 /**
  * @brief Helper function outputting program invocation information to given logger
  */
 void program_execution_info(int argc, char **argv, Log::Logger *log) {
+	log->info() << "Execution info:" << endl;
+
 	char info_str[MAX_INFO_STRING_LENGTH];
 	get_timestamp(info_str);
-	log->info() << "Started: " << info_str << endl;
+	log->info() << "	Started: " << info_str << endl;
 	get_host(info_str);
-	log->info() << "Execution host: " << info_str << endl;
+	log->info() << "	Execution host: " << info_str << endl;
 	std::stringstream arguments;
 	for (int i = 0; i < argc; i++) {
 		arguments << " " << argv[i];
 	}
-	log->info() << "Started with arguments: " << arguments.str() << endl;
+	log->info() << "	Started with arguments: " << arguments.str() << endl;
+
+#if defined(_OPENMP)
+	int num_threads = mardyn_get_max_threads();
+	global_log->info() << "	Running with " << num_threads << " OpenMP threads." << endl;
+	// print thread pinning info
+	PrintThreadPinningToCPU();
+#endif
+
 #ifdef ENABLE_MPI
 	int world_size = 1;
 	MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &world_size));
-	global_log->info() << "Running with " << world_size << " MPI processes." << endl;
-#endif
-#if defined(_OPENMP)
-	int num_threads = mardyn_get_max_threads();
-	global_log->info() << "Running with " << num_threads << " OpenMP threads." << endl;
-
-	#if defined(ENABLE_REDUCED_MEMORY_MODE)
-	global_log->warning() << "Running in reduced memory mode. Not all features work in this mode." << endl;
-		// print thread pinning info
-		PrintThreadPinningToCPU();
-	#endif
+	global_log->info() << "	Running with " << world_size << " MPI processes." << endl;
 #endif
 }
 
@@ -183,23 +182,28 @@ int main(int argc, char** argv) {
 	/* Set up and run regular Simulation */
 	Simulation simulation;
 
-	unsigned int numargs = args.size();
-	if(numargs != 1) {
+	auto numArgs = args.size();
+	if(numArgs != 1) {
 		global_log->error() << "Incorrect number of arguments provided." << std::endl;
 		op.print_usage();
 		Simulation::exit(-1);
 	}
 	/* First read the given config file if it exists, then overwrite parameters with command line arguments. */
-	std::string configfilename(args[0]);
-	if( fileExists(configfilename.c_str()) ) {
-		global_log->info() << "Config file: " << configfilename << endl;
-		simulation.readConfigFile(configfilename);
+	std::string configFileName(args[0]);
+	if( fileExists(configFileName.c_str()) ) {
+		global_log->info() << "Config file: " << configFileName << endl;
+		simulation.readConfigFile(configFileName);
 	} else {
-		global_log->error() << "Cannot open config file '" << configfilename << "'" << endl;
+		global_log->error() << "Cannot open config file '" << configFileName << "'" << endl;
 		Simulation::exit(-2);
 	}
 
 	/* processing command line arguments */
+	if ( options.get("legacy-cell-processor") ) {
+		simulation.useLegacyCellProcessor();
+		global_log->info() << "--legacy-cell-processor specified, using legacyCellProcessor" << endl;
+	}
+
 	if ( (int) options.get("final-checkpoint") > 0 ) {
 		simulation.enableFinalCheckpoint();
 		global_log->info() << "Final checkpoint enabled" << endl;
@@ -217,18 +221,21 @@ int main(int argc, char** argv) {
 	if (options.is_set_by_user("timesteps")) {
 		simulation.setNumTimesteps(options.get("timesteps").operator unsigned long int());
 	}
+	if (options.is_set_by_user("loop-abort-time")) {
+		simulation.setLoopAbortTime(options.get("loop-abort-time").operator double());
+	}
 	global_log->info() << "Simulating " << simulation.getNumTimesteps() << " steps." << endl;
-    
+
 	if(options.is_set_by_user("print-meminfo")) {
 		global_log->info() << "Enabling memory info output" << endl;
 		simulation.enableMemoryProfiler();
 	}
-	size_t lastindex = configfilename.rfind(".");
-	std::string outprefix = configfilename.substr(0, lastindex);
+	size_t lastIndex = configFileName.rfind(".");
+	std::string outPrefix = configFileName.substr(0, lastIndex);
 	if( options.is_set_by_user("outputprefix") ) {
-		outprefix = options["outputprefix"];
+		outPrefix = options["outputprefix"];
 	}
-	simulation.setOutputPrefix(outprefix.c_str());
+	simulation.setOutputPrefix(outPrefix.c_str());
 	global_log->info() << "Default output prefix: " << simulation.getOutputPrefix() << endl;
 
 
@@ -240,13 +247,18 @@ int main(int argc, char** argv) {
 	sim_timer.stop();
 	double runtime = sim_timer.get_etime();
 	//!@todo time only for simulation.simulate not "main"!
-	global_log->info() << "main: used " << fixed << setprecision(2) << runtime << " seconds" << endl;
+	global_log->info() << "main: used " << fixed << setprecision(2) << runtime << " seconds" << endl << fixed << setprecision(5);
+	//  FIXME: The statements "<< fixed << setprecision(5)" after endl are so that the next logger timestamp appears as expected. A better solution would be nice, of course.
 
 	// print out total simulation speed
 	//!@todo is this correct w.r.t. starting from time > 0 ? We keep changing this...
 	const unsigned long numForceCalculations = simulation.getNumTimesteps();
 	const double speed = simulation.getTotalNumberOfMolecules() * numForceCalculations / runtime;
-	global_log->info() << "Simulation speed: " << scientific << speed << " Molecule-updates per second." << endl;
+	global_log->info() << "Simulation speed: " << scientific << setprecision(6) << speed << " Molecule-updates per second." << endl << fixed << setprecision(5);
+
+	const double iterationsPerSecond = simulation.getNumTimesteps() / runtime;
+	global_log->info() << "Iterations per second: " << fixed << setprecision(3) << iterationsPerSecond << endl << fixed << setprecision(5);
+	global_log->info() << "Time per iteration: " << fixed << setprecision(3) << 1.0 / iterationsPerSecond << " seconds." << endl << fixed << setprecision(5);
 
 	simulation.finalize();
 

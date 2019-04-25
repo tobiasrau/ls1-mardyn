@@ -32,11 +32,11 @@
     <algorithm>
       <parallelisation type="DomainDecomposition"/>
       <datastructure type="AutoPas">
-        <allowedTraversals>c08, sli</allowedTraversals>
-        <allowedContainers>linkedCells</allowedContainers>
-        <traversalSelectorStrategy>fastestMedian</traversalSelectorStrategy>
-        <containerSelectorStrategy>fastestMedian</containerSelectorStrategy>
-        <dataLayout>SoA</dataLayout>
+        <allowedTraversals></allowedTraversals>
+        <allowedContainers>verletLists</allowedContainers>
+        <selectorStrategy>fastestMedian</selectorStrategy>
+        <dataLayouts>SoA</dataLayouts>
+        <newton3>enabled</newton3>
         <tuningInterval>1000</tuningInterval>
         <tuningSamples>3</tuningSamples>
       </datastructure>

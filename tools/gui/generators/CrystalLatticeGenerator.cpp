@@ -109,7 +109,7 @@ void CrystalLatticeGenerator::readPhaseSpaceHeader(Domain* domain, double timest
 
 
 unsigned long CrystalLatticeGenerator::readPhaseSpace(ParticleContainer* particleContainer,
-		std::list<ChemicalPotential>* /*lmu*/, Domain* domain, DomainDecompBase* domainDecomp) {
+		Domain* domain, DomainDecompBase* domainDecomp) {
 
 	global_simulation->timers()->start("CRYSTAL_LATTICE_GENERATOR_INPUT");
 	_logger->info() << "Reading phase space file (CubicGridGenerator)." << endl;
@@ -177,7 +177,10 @@ void CrystalLatticeGenerator::addMolecule(double x, double y, double z, unsigned
 			0.0, 0.0, 0.0, // velocity
 			1.0, 0.0, 0.0, 0.0, // orientation
 			0.0, 0.0, 0.0);
-	particleContainer->addParticle(m);
+	if (particleContainer->isInBoundingBox(m.r_arr().data())) {
+		bool inChecked = true;
+		particleContainer->addParticle(m, inChecked);
+	}
 }
 
 

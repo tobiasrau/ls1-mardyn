@@ -139,7 +139,7 @@ void MS2RSTGenerator::readPhaseSpaceHeader(Domain* domain, double timestep) {
 
 
 unsigned long MS2RSTGenerator::readPhaseSpace(ParticleContainer* particleContainer,
-		std::list<ChemicalPotential>* /*lmu*/, Domain* domain, DomainDecompBase* domainDecomp) {
+		Domain* domain, DomainDecompBase* domainDecomp) {
 
 	global_simulation->timers()->start("MS2RST_GENERATOR_INPUT");
 	_logger->info() << "Reading phase space file (MS2RSTGenerator)." << endl;
@@ -182,7 +182,10 @@ void MS2RSTGenerator::addMolecule(MS2RestartReader::MoleculeData& ms2mol, Partic
 			ms2mol.v[0], ms2mol.v[1], ms2mol.v[2], // velocity
 			ms2mol.q[0], ms2mol.q[1], ms2mol.q[2], ms2mol.q[3],
 			ms2mol.d[0], ms2mol.d[1], ms2mol.d[2] );
-	particleContainer->addParticle(m);
+	if (particleContainer->isInBoundingBox(m.r_arr().data())) {
+		bool inChecked = true;
+		particleContainer->addParticle(m, inChecked);
+	}
 }
 
 

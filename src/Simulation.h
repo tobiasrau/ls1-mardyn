@@ -4,7 +4,6 @@
 #include <memory>
 
 #include "ensemble/CavityEnsemble.h"
-#include "ensemble/GrandCanonical.h"
 #include "io/TimerProfiler.h"
 #include "utils/OptionParser.h"
 #include "utils/SysMon.h"
@@ -21,7 +20,6 @@ class Simulation;
 extern Simulation* global_simulation;
 #endif
 
-class PressureGradient;
 class ParticleInsertion;
 class Ensemble;
 
@@ -223,7 +221,7 @@ public:
 
 	/** Get pointer to the molecule container */
 	ParticleContainer* getMoleculeContainer() { return _moleculeContainer; }
-	
+
 	/** Set the number of time steps to be performed in the simulation */
 	void setNumTimesteps( unsigned long steps ) { _numberOfTimesteps = steps; }
 	/** Get the number of time steps to be performed in the simulation */
@@ -232,6 +230,12 @@ public:
 	unsigned long getNumInitTimesteps() { return _initSimulation; }
 	/** Get the number of the actual time step currently processed in the simulation. */
 	unsigned long getSimulationStep() { return _simstep; }
+	/** Set Loop Time Limit in seconds */
+	void setLoopAbortTime(double time) {
+		global_log->info() << "Max loop-abort-time set: " << time << "\n";
+		_wallTimeEnabled = true;
+		_maxWallTime = time;
+	}
 
 	double getcutoffRadius() const { return _cutoffRadius; }
 	void setcutoffRadius(double cutoffRadius) { _cutoffRadius = cutoffRadius; }
@@ -286,6 +290,11 @@ public:
 	TimerProfiler* timers() {
 		return &_timerProfiler;
 	}
+
+	//! get Planck constant
+	double getH() {return h;}
+	//! set Planck constant
+    void setH(double h_extern) {h = h_extern;}
 
 private:
 
@@ -342,9 +351,6 @@ private:
 
 	Ensemble* _ensemble;
 
-	/** Flow regulation */
-	PressureGradient* _pressureGradient;
-
 	/** Datastructure for finding neighbours efficiently */
 	ParticleContainer* _moleculeContainer;
 
@@ -371,7 +377,7 @@ private:
 
 	//! number of time steps after which the canceling is carried outline
 	unsigned _momentumInterval;
-	
+
 	//! random number generator
 	Random _rand;
 
@@ -417,6 +423,8 @@ public:
 	void enableFinalCheckpoint() { _finalCheckpoint = true; }
 	void disableFinalCheckpoint() { _finalCheckpoint = false; }
 
+	void useLegacyCellProcessor() { _legacyCellProcessor = true; }
+
 	void enableMemoryProfiler() {
 		_memoryProfiler = std::make_shared<MemoryProfiler>();
 		_memoryProfiler->registerObject(reinterpret_cast<MemoryProfilable**>(&_moleculeContainer));
@@ -441,38 +449,30 @@ public:
 	void initGlobalEnergyLog();
 	void writeGlobalEnergyLog(const double& globalUpot, const double& globalT, const double& globalPressure);
 
-	std::list<ChemicalPotential>* getLmu()  {
-		return &_lmu;
-	}
-
 	CellProcessor *getCellProcessor() const;
 
 	/** @brief Refresh particle IDs to continuous numbering*/
 	void refreshParticleIDs();
 
- private:
+	/** @brief Checks if Simsteps or MaxWallTime are reached */
+	bool keepRunning();
+
+private:
+
+	Timer _timeFromStart;
+	double _maxWallTime = -1;
+	bool _wallTimeEnabled = false;
 
 	/** Enable final checkpoint after simulation run. */
 	bool _finalCheckpoint;
+
+	/** use legacyCellProcessor instead of vectorizedCellProcessor */
+	bool _legacyCellProcessor = false;
 
 	/** List of plugins to use */
 	std::list<PluginBase*> _plugins;
 
 	VelocityScalingThermostat _velocityScalingThermostat;
-
-	/** List of ChemicalPotential objects, each of which describes a
-	 * particular control volume for the grand canonical ensemble with
-	 * respect to one of the simulated components.
-	 *
-	 * It may at first be unclear why one could want to specify
-	 * several grand canonical ensembles, which are then stored in a
-	 * list. However, note that for every component a distinct
-	 * chemical potential can be specified, and this is of course
-	 * essential in certain cases. Also, different chemical potentials
-	 * can be specified for different control volumes to induce a
-	 * gradient of the chemical potential.
-	 */
-	std::list<ChemicalPotential> _lmu;
 
 	/** This is Planck's constant. (Required for the Metropolis
 	 * criterion which is used for the grand canonical ensemble).
@@ -506,4 +506,3 @@ public:
 	} _prepare_start_opt;
 };
 #endif /*SIMULATION_H_*/
-

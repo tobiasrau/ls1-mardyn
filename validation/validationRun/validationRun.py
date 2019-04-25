@@ -59,11 +59,13 @@ options, remainder = getopt(argv[1:], 'M:m:n:o:c:i:p:I:hbr:R:LB:a:AS',
                              'baseRemote=',
                              'additionalFile=',
                              'allMPI',
+                             'legacy-cell-processor',
                              'srunFix',
                              'disablePlugin='
                              ])
 nonDefaultPlugins = False
 baseIsLocal = False
+legacyCellProcessor = False
 
 allMPI = False
 MPI_START = 'mpirun'  # e.g. I need to set it to mpirun.mpich locally
@@ -114,6 +116,8 @@ for opt, arg in options:
         additionalFilenames.append(arg)
     elif opt in ('-A', '--allMPI'):
         allMPI = True
+    elif opt in ('', '--legacy-cell-processor'):
+        legacyCellProcessor = True
     elif opt in ('-S', '--srunFix'):
         os.environ["I_MPI_PMI_LIBRARY"] = "/usr/lib64/libpmi.so"
     else:
@@ -237,12 +241,14 @@ if doReferenceRun:
     call(['mkdir', '-p', 'reference/'])
     call(['cp', xmlBase, 'reference/'])
     call(['cp', inpBase, 'reference/'])
-    call(['cp'] + additionalFileBases + ['reference/'])
+    if len(additionalFileBases):
+        call(['cp'] + additionalFileBases + ['reference/'])
     call(['cp', oldMarDynBase, 'reference/'])
 call(['mkdir', '-p', 'new/'])
 call(['cp', xmlBase, 'new/'])
 call(['cp', inpBase, 'new/'])
-call(['cp'] + additionalFileBases + ['new/'])
+if len(additionalFileBases):
+    call(['cp'] + additionalFileBases + ['new/'])
 call(['cp', newMarDynBase, 'new/'])
 
 def doRun(directory, MardynExe):
@@ -292,14 +298,23 @@ def doRun(directory, MardynExe):
             cmd.extend(split(MPI_START))
             cmd.extend(['-n', str(mpi)])
 
-
-    cmd.extend(['./' + MardynExe, "--final-checkpoint=0", xmlBase, "--steps", numIterations]);
+    if legacyCellProcessor and directory == "new":
+        cmd.extend(['./' + MardynExe, "--legacy-cell-processor", "--final-checkpoint=0", xmlBase, "--steps", numIterations]);
+    else:
+        cmd.extend(['./' + MardynExe, "--final-checkpoint=0", xmlBase, "--steps", numIterations]);
     #cmd.extend(['/work_fast/tchipevn/SDE/sde-external-7.41.0-2016-03-03-lin/sde64', '-knl', '--', './' + MardynExe, "--final-checkpoint=0", xmlBase, numIterations]);
     print cmd
     print "================"
     t = time.time()
-    p = Popen(cmd, stdout=PIPE, stderr=PIPE)
-    out, err = p.communicate()
+    while True:
+        # repeatedly try this if srun was not working
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        out, err = p.communicate()
+        if p.returncode == 1 and ("Job violates accounting/QOS policy" in err or "Socket timed out on send/recv" in err):
+            print "srun submit limit reached or socket timed out error, trying again in 60s"
+            time.sleep(60)
+            continue
+        break
     t = time.time() - t
     print "elapsed time:", t
     if p.returncode:

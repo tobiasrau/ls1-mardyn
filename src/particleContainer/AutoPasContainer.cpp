@@ -11,6 +11,7 @@
 #include "Simulation.h"
 #include "autopas/utils/Logger.h"
 #include "autopas/utils/StringUtils.h"
+#include "parallel/DomainDecompBase.h"
 
 AutoPasContainer::AutoPasContainer()
     : _cutoff(0.),
@@ -21,10 +22,29 @@ AutoPasContainer::AutoPasContainer()
 	  _autopasContainer(),
 	  _traversalChoices(autopas::allTraversalOptions),
 	  _containerChoices(autopas::allContainerOptions),
-	  _traversalSelectorStrategy(autopas::SelectorStrategy::fastestMedian),
-	  _containerSelectorStrategy(autopas::SelectorStrategy::fastestMedian),
-	  _dataLayout(autopas::DataLayoutOption::soa){
-	// autopas::Logger::get()->set_level(spdlog::level::debug);
+	  _selectorStrategy(autopas::SelectorStrategy::fastestMedian),
+	  _dataLayoutChoices{autopas::DataLayoutOption::soa},
+	  _newton3Choices{autopas::Newton3Option::enabled}
+	  {
+
+#ifdef ENABLE_MPI
+        std::stringstream logFileName;
+
+        auto timeNow = chrono::system_clock::now();
+        auto time_tNow = std::chrono::system_clock::to_time_t(timeNow);
+
+        auto maxRank = global_simulation->domainDecomposition().getNumProcs();
+        auto numDigitsMaxRank = std::to_string(maxRank).length();
+
+        logFileName << "AutoPas_Rank"
+                    << setfill('0') << setw(numDigitsMaxRank)
+                    << global_simulation->domainDecomposition().getRank() << "_"
+                    << std::put_time(std::localtime(&time_tNow), "%Y-%m-%d_%H-%M-%S")
+                    << ".log";
+
+        _logFile.open(logFileName.str());
+        _autopasContainer = decltype(_autopasContainer)(_logFile);
+#endif
 }
 
 void AutoPasContainer::readXML(XMLfileUnits &xmlconfig) {
@@ -37,37 +57,48 @@ void AutoPasContainer::readXML(XMLfileUnits &xmlconfig) {
 	_containerChoices = autopas::utils::StringUtils::parseContainerOptions(
 		string_utils::toLowercase(xmlconfig.getNodeValue_string("allowedContainers", "linked-cell")));
 
-	_traversalSelectorStrategy = autopas::utils::StringUtils::parseSelectorStrategy(
-		string_utils::toLowercase(xmlconfig.getNodeValue_string("traversalSelectorStrategy", "median")));
-	_containerSelectorStrategy = autopas::utils::StringUtils::parseSelectorStrategy(
-		string_utils::toLowercase(xmlconfig.getNodeValue_string("containerSelectorStrategy", "median")));
+	_selectorStrategy = autopas::utils::StringUtils::parseSelectorStrategy(
+		string_utils::toLowercase(xmlconfig.getNodeValue_string("selectorStrategy", "median")));
 
-	_dataLayout = autopas::utils::StringUtils::parseDataLayout(
-		string_utils::toLowercase(xmlconfig.getNodeValue_string("dataLayout", "soa")));
+	_dataLayoutChoices = autopas::utils::StringUtils::parseDataLayout(
+		string_utils::toLowercase(xmlconfig.getNodeValue_string("dataLayouts", "soa")));
+
+	_newton3Choices = autopas::utils::StringUtils::parseNewton3Options(
+		string_utils::toLowercase(xmlconfig.getNodeValue_string("newton3", "enabled")));
 
 	_tuningSamples = (unsigned int)xmlconfig.getNodeValue_int("tuningSamples", 3);
 	_tuningFrequency = (unsigned int)xmlconfig.getNodeValue_int("tuningInterval", 500);
 
+
+	std::stringstream dataLayoutChoicesStream;
+	for_each(_dataLayoutChoices.begin(), _dataLayoutChoices.end(),
+	         [&](auto &choice) { dataLayoutChoicesStream << autopas::utils::StringUtils::to_string(choice) << " "; });
 	std::stringstream containerChoicesStream;
 	for_each(_containerChoices.begin(), _containerChoices.end(),
 			 [&](auto &choice) { containerChoicesStream << autopas::utils::StringUtils::to_string(choice) << " "; });
 	std::stringstream traversalChoicesStream;
 	for_each(_traversalChoices.begin(), _traversalChoices.end(),
 			 [&](auto &choice) { traversalChoicesStream << autopas::utils::StringUtils::to_string(choice) << " "; });
+	std::stringstream newton3ChoicesStream;
+	for_each(_newton3Choices.begin(), _newton3Choices.end(),
+	         [&](auto &choice) { newton3ChoicesStream << autopas::utils::StringUtils::to_string(choice) << " "; });
 
-	int valueOffset = 28;
+	int valueOffset = 20;
 	global_log->info() << "AutoPas configuration:" << endl
-	                   << setw(valueOffset) << left << "Data Layout " << ": "
-	                   << autopas::utils::StringUtils::to_string(_dataLayout) << endl
-					   << setw(valueOffset) << left << "Container " << ": " << containerChoicesStream.str() << endl
-					   << setw(valueOffset) << left << "Container selector strategy " << ": "
-					   << autopas::utils::StringUtils::to_string(_containerSelectorStrategy) << endl
-					   << setw(valueOffset) << left << "Traversals " << ": " << traversalChoicesStream.str() << endl
-					   << setw(valueOffset) << left << "Traversal selector strategy " << ": "
-					   << autopas::utils::StringUtils::to_string(_traversalSelectorStrategy) << endl
-					   << setw(valueOffset) << left << "Tuning frequency" << ": "  << _tuningFrequency << endl
-					   << setw(valueOffset) << left << "Number of samples " << ": "  << _tuningSamples << endl
-					   ;
+					   << setw(valueOffset) << left << "Data Layout "
+					   << ": " << dataLayoutChoicesStream.str() << endl
+					   << setw(valueOffset) << left << "Container "
+					   << ": " << containerChoicesStream.str() << endl
+					   << setw(valueOffset) << left << "Traversals "
+					   << ": " << traversalChoicesStream.str() << endl
+					   << setw(valueOffset) << left << "Selector strategy "
+					   << ": " << autopas::utils::StringUtils::to_string(_selectorStrategy) << endl
+					   << setw(valueOffset) << left << "Tuning frequency"
+					   << ": " << _tuningFrequency << endl
+					   << setw(valueOffset) << left << "Number of samples "
+					   << ": " << _tuningSamples << endl
+					   << setw(valueOffset) << left << "Newton3"
+					   << ": " << newton3ChoicesStream.str() << endl;
 	xmlconfig.changecurrentnode(oldPath);
 }
 
@@ -76,9 +107,19 @@ bool AutoPasContainer::rebuild(double *bBoxMin, double *bBoxMax) {
 	std::array<double, 3> boxMin{bBoxMin[0], bBoxMin[1], bBoxMin[2]};
 	std::array<double, 3> boxMax{bBoxMax[0], bBoxMax[1], bBoxMax[2]};
 
-	_autopasContainer.init(boxMin, boxMax, _cutoff, _verletSkin, _verletRebuildFrequency, _containerChoices,
-						   _traversalChoices, _containerSelectorStrategy, _traversalSelectorStrategy, _tuningFrequency,
-						   _tuningSamples);
+	_autopasContainer.setBoxMin(boxMin);
+	_autopasContainer.setBoxMax(boxMax);
+	_autopasContainer.setCutoff(_cutoff);
+	_autopasContainer.setVerletSkin(_verletSkin);
+	_autopasContainer.setVerletRebuildFrequency(_verletRebuildFrequency);
+	_autopasContainer.setTuningInterval(_tuningFrequency);
+	_autopasContainer.setNumSamples(_tuningSamples);
+	_autopasContainer.setSelectorStrategy(_selectorStrategy);
+	_autopasContainer.setAllowedContainers(_containerChoices);
+	_autopasContainer.setAllowedTraversals(_traversalChoices);
+	_autopasContainer.setAllowedDataLayouts(_dataLayoutChoices);
+	_autopasContainer.setAllowedNewton3Options(_newton3Choices);
+	_autopasContainer.init();
 	autopas::Logger::get()->set_level(autopas::Logger::LogLevel::debug);
 
 	memcpy(_boundingBoxMin, bBoxMin, 3 * sizeof(double));
@@ -130,9 +171,10 @@ void AutoPasContainer::traverseCells(CellProcessor &cellProcessor) {
 		std::array<double, 3> highCorner = {_boundingBoxMax[0], _boundingBoxMax[1], _boundingBoxMax[2]};
 
 		// generate the functor
-		autopas::LJFunctor<Molecule, CellType, /*calculateGlobals*/ true> functor(_cutoff, epsilon, sigma, shift,
-																				  lowCorner, highCorner,
-																				  /*duplicatedCalculation*/ true);
+		autopas::LJFunctor<Molecule, CellType, autopas::FunctorN3Modes::Both,
+						   /*calculateGlobals*/ true>
+			functor(_cutoff, epsilon, sigma, shift, lowCorner, highCorner,
+					/*duplicatedCalculation*/ true);
 #if defined(_OPENMP)
 #pragma omp parallel
 #endif
@@ -140,9 +182,7 @@ void AutoPasContainer::traverseCells(CellProcessor &cellProcessor) {
 			iter->clearFM();
 		}
 
-		functor.resetGlobalValues();
-		_autopasContainer.iteratePairwise(&functor, _dataLayout);
-		functor.postProcessGlobalValues(/*newton3*/ true);
+		_autopasContainer.iteratePairwise(&functor);
 		double upot = functor.getUpot();
 		double virial = functor.getVirial();
 
@@ -156,11 +196,11 @@ void AutoPasContainer::traverseCells(CellProcessor &cellProcessor) {
 }
 
 void AutoPasContainer::traverseNonInnermostCells(CellProcessor &cellProcessor) {
-	throw std::runtime_error("not yet implemented");
+	throw std::runtime_error("AutoPasContainer::traverseNonInnermostCells() not yet implemented");
 }
 
 void AutoPasContainer::traversePartialInnermostCells(CellProcessor &cellProcessor, unsigned int stage, int stageCount) {
-	throw std::runtime_error("not yet implemented");
+	throw std::runtime_error("AutoPasContainer::traversePartialInnermostCells() not yet implemented");
 }
 
 unsigned long AutoPasContainer::getNumberOfParticles() { return _autopasContainer.getNumberOfParticles(); }
@@ -174,17 +214,17 @@ double AutoPasContainer::get_halo_L(int /*index*/) const { return _cutoff; }
 double AutoPasContainer::getCutoff() { return _cutoff; }
 
 void AutoPasContainer::deleteMolecule(Molecule &molecule, const bool &rebuildCaches) {
-	throw std::runtime_error("not yet implemented");
+	throw std::runtime_error("AutoPasContainer::deleteMolecule() not yet implemented");
 }
 
 double AutoPasContainer::getEnergy(ParticlePairsHandler *particlePairsHandler, Molecule *m1,
 								   CellProcessor &cellProcessor) {
-	throw std::runtime_error("not yet implemented");
+	throw std::runtime_error("AutoPasContainer::getEnergy() not yet implemented");
 }
 
-void AutoPasContainer::updateInnerMoleculeCaches() { throw std::runtime_error("not yet implemented"); }
+void AutoPasContainer::updateInnerMoleculeCaches() { throw std::runtime_error("AutoPasContainer::updateInnerMoleculeCaches() not yet implemented"); }
 
-void AutoPasContainer::updateBoundaryAndHaloMoleculeCaches() { throw std::runtime_error("not yet implemented"); }
+void AutoPasContainer::updateBoundaryAndHaloMoleculeCaches() { throw std::runtime_error("AutoPasContainer::updateBoundaryAndHaloMoleculeCaches() not yet implemented"); }
 
 void AutoPasContainer::updateMoleculeCaches() {
 	// nothing needed
@@ -203,10 +243,10 @@ bool AutoPasContainer::getMoleculeAtPosition(const double *pos, Molecule **resul
 
 unsigned long AutoPasContainer::initCubicGrid(std::array<unsigned long, 3> numMoleculesPerDimension,
 											  std::array<double, 3> simBoxLength) {
-	throw std::runtime_error("not yet implemented");
+	throw std::runtime_error("AutoPasContainer::initCubicGrid() not yet implemented");
 }
 
-double *AutoPasContainer::getCellLength() { throw std::runtime_error("not yet implemented"); }
+double *AutoPasContainer::getCellLength() { throw std::runtime_error("AutoPasContainer::getCellLength() not yet implemented"); }
 
 autopas::IteratorBehavior convertBehaviorToAutoPas(ParticleIterator::Type t) {
 	switch (t) {
