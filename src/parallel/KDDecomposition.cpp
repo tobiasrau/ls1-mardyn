@@ -396,7 +396,10 @@ bool KDDecomposition::migrateParticles(const KDNode& newRoot, const KDNode& newO
 			}
 		}
 	}
-	mardyn_assert(moleculeContainer->getNumberOfParticles() == 0ul);
+	if(moleculeContainer->getNumberOfParticles() != 0ul){
+		global_log->error_always_output() << "KDDecomposition::migrateParticles: particles remaining in KDD, they will be lost." << std::endl;
+		Simulation::exit(312);
+	}
 	double newBoxMin[3];
 	double newBoxMax[3];
 	for (int dim = 0; dim < 3; dim++) {
