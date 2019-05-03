@@ -396,8 +396,20 @@ bool KDDecomposition::migrateParticles(const KDNode& newRoot, const KDNode& newO
 			}
 		}
 	}
-	if(moleculeContainer->getNumberOfParticles() != 0ul){
-		global_log->error_always_output() << "KDDecomposition::migrateParticles: particles remaining in KDD, they will be lost." << std::endl;
+	if (moleculeContainer->getNumberOfParticles() != 0ul) {
+		global_log->error_always_output()
+			<< "KDDecomposition::migrateParticles: particles remaining in KDD, they will be lost. " << std::endl;
+		global_log->error_always_output()
+			<< "This process migrated from [" << _ownArea->_lowCorner[0] << ", " << _ownArea->_highCorner[0] << ") x ["
+			<< _ownArea->_lowCorner[1] << ", " << _ownArea->_highCorner[1] << ") x [" << _ownArea->_lowCorner[2] << ", "
+			<< _ownArea->_highCorner[2] << ") to [" << newOwnLeaf._lowCorner[0] << ", " << newOwnLeaf._highCorner[0]
+			<< ") x [" << newOwnLeaf._lowCorner[1] << ", " << newOwnLeaf._highCorner[1] << ") x ["
+			<< newOwnLeaf._lowCorner[2] << ", " << newOwnLeaf._highCorner[2] << ")." << std::endl;
+		global_log->error_always_output() << "Particles that were not moved and will be lost:" << std::endl;
+		for (auto iter = moleculeContainer->iterator(); iter.isValid(); ++iter) {
+			global_log->error_always_output() << "id: " << iter->getID() << "r: (" << iter->r(0) << ", " << iter->r(1)
+											  << ", " << iter->r(2) << ")" << std::endl;
+		}
 		Simulation::exit(312);
 	}
 	double newBoxMin[3];
@@ -1760,7 +1772,7 @@ bool KDDecomposition::calculateHeteroSubdivision(KDNode* node, KDNode*& optimalN
 		auto left = costsLeft[biggestDim][i];
 		auto right = costsRight[biggestDim][i];
 
-		error = fabs(costsLeft[biggestDim][i] / costsRight[biggestDim][i] - leftRightLoadRatio);
+		error = fabs(left / right - leftRightLoadRatio);
 		if (error < minError) {
 			minError = error;
 			index = i;

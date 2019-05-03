@@ -265,11 +265,8 @@ bool CommunicationPartner::testRecv(ParticleContainer* moleculeContainer, bool r
 		}
 		if (flag == true) {
 			_msgReceived = true;
-			
 
-
-			
-			if(!force) { // Buffer is particle data 
+			if(!force) { // Buffer is particle data
 				static std::vector<Molecule> mols;
 				unsigned long numHalo, numLeaving;
 				_recvBuf.resizeForReceivingMolecules(numLeaving, numHalo); 
