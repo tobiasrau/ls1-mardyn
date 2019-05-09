@@ -11,7 +11,8 @@ def printVariation(def it) {
 }
 
 def ciMatrix = [
-  ["SSE","NOVEC","AVX","AVX2","KNL_MASK","KNL_G_S"], // VECTORIZE_CODE
+  ["SKX_MASK", "SKX_G_S"], // VECTORIZE_CODE
+//  ["SSE","NOVEC","AVX","AVX2","KNL_MASK","KNL_G_S"], // VECTORIZE_CODE
   ["DEBUG","RELEASE"],                               // TARGET
   ["0","1"],                                         // OPENMP
   ["PAR","SEQ"],                                     // PARTYPE
@@ -204,7 +205,7 @@ pipeline {
                           }
                         }
                         // FIXME: Mixed precision unit-tests fail with rmm
-                        if ((PRECISION=="MIXED").implies(REDUCED_MEMORY_MODE=="0")) {
+                        if (false && (PRECISION=="MIXED").implies(REDUCED_MEMORY_MODE=="0")) {
                           stage("unit-test/${it.join('-')}") {
                             try {
                               printVariation(it)
@@ -282,7 +283,7 @@ pipeline {
                             xunit([CppUnit(deleteOutputFiles: true, failIfNotNew: false, pattern: 'results.xml', skipNoTestFiles: false, stopProcessingIfError: true)])
                           }
                         }
-                        if (PRECISION=="DOUBLE" && REDUCED_MEMORY_MODE=="0") {
+                        if (false && PRECISION=="DOUBLE" && REDUCED_MEMORY_MODE=="0") {
                           stage("validation-test/${it.join('-')}") {
                             try {
                               copyArtifacts filter: '**/*', fingerprintArtifacts: true, projectName: 'MardynUpdateValidationBase', selector: lastSuccessful()
