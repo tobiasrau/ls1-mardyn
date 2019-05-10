@@ -225,14 +225,15 @@ pipeline {
                                   error "Unrecognized job state " + knl_jobstate
                                 }
                               }
+                              def skxOption = (VECTORIZE_CODE.startsWith("SKX_")) ? "sde -- " : ""
                               def legacyCellProcessorOptions = ((VECTORIZE_CODE == "NOVEC") && (REDUCED_MEMORY_MODE == "0") ? [false, true] : [false])
                               for (legacyCellProcessor in legacyCellProcessorOptions) {
                                 def legacyCellProcessorOption = (legacyCellProcessor ? "--legacy-cell-processor" : "")
                                 println "Cell processor is " + (legacyCellProcessor ? "legacy" : "vectorized")
                                 if (ARCH=="HSW" && PARTYPE=="PAR") {
-                                  sh "mpirun -n 4 ./src/${it.join('-')} $legacyCellProcessorOption -t -d ./test_input/"
+                                  sh skxOption + "mpirun -n 4 ./src/${it.join('-')} $legacyCellProcessorOption -t -d ./test_input/"
                                 } else if (ARCH=="HSW" && PARTYPE=="SEQ") {
-                                  sh "./src/${it.join('-')} $legacyCellProcessorOption -t -d ./test_input/"
+                                  sh skxOption + "./src/${it.join('-')} $legacyCellProcessorOption -t -d ./test_input/"
                                 } else if (ARCH=="KNL" && PARTYPE=="PAR") {
                                   sh """
                                     source /etc/profile.d/modules.sh
@@ -304,7 +305,7 @@ pipeline {
                                   dir("validation/validationBase") {
                                     def sameParTypeOption = (fileExists ('../validationInput/' + configDirVar + '/compareSameParType')) ? "" : "-b"
                                     def mpicmd = (PARTYPE=="PAR" ? "-m 4" : "-m 1")
-                                    def mpiextra = (ARCH=="KNL" ? "-M \"srun --jobid=" + getKnlJobid() + "\"" : "")
+                                    def mpiextra = (ARCH=="KNL" ? "-M \"srun --jobid=" + getKnlJobid() + "\"" : skxOption)
                                     def allmpi = (ARCH=="KNL" ? "--allMPI" : "")
                                     def legacyCellProcessorOption = (legacyCellProcessor ? "--legacy-cell-processor" : "")
                                     def srunfix = (ARCH=="KNL" ? "--srunFix" : "")
