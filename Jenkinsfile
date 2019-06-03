@@ -163,7 +163,7 @@ pipeline {
             // return the job
             if (combinationFilter(it)) {
               return {
-                node(VECTORIZE_CODE) {
+                node("openshift-autoscale") {
                   container("ls1-sde") {
                     def ARCH = (NODE_NAME == "KNL-Cluster-login") ? "KNL" : "HSW"
                     def build_result = "not run"
