@@ -164,11 +164,12 @@ pipeline {
             if (combinationFilter(it)) {
               return {
                 node(VECTORIZE_CODE) {
-                  def ARCH = (NODE_NAME == "KNL-Cluster-login") ? "KNL" : "HSW"
-                  def build_result = "not run"
-                  def unit_test_result = "not run"
-                  def validation_test_result = "not run"
-                  try {
+                  container("ls1-sde") {
+                    def ARCH = (NODE_NAME == "KNL-Cluster-login") ? "KNL" : "HSW"
+                    def build_result = "not run"
+                    def unit_test_result = "not run"
+                    def validation_test_result = "not run"
+                    try {
                     stage("${it.join('-')}") {
                       sh "rm -rf ${it.join('-')} || echo ''"
                       ws("${WORKSPACE}/${it.join('-')}") {
@@ -225,7 +226,7 @@ pipeline {
                                   error "Unrecognized job state " + knl_jobstate
                                 }
                               }
-                              def skxOption = (VECTORIZE_CODE.startsWith("SKX_")) ? "sde -- " : ""
+                              def skxOption = (VECTORIZE_CODE.startsWith("SKX_")) ? "./usr/bin/sde/sde64 -- " : ""
                               def legacyCellProcessorOptions = ((VECTORIZE_CODE == "NOVEC") && (REDUCED_MEMORY_MODE == "0") ? [false, true] : [false])
                               for (legacyCellProcessor in legacyCellProcessorOptions) {
                                 def legacyCellProcessorOption = (legacyCellProcessor ? "--legacy-cell-processor" : "")
@@ -332,7 +333,7 @@ pipeline {
                                             rm ${it.join('-')} || echo ""
                                             cp ${WORKSPACE}/src/${it.join('-')} .
                                             pwd && ls
-                                            ../../validationRun/validationRun.py \
+                                            ./usr/bin/sde/sde64 -- ../../validationRun/validationRun.py \
                                               $srunfix \
                                               -o ./$oldexec \
                                               -n ./${it.join('-')} \
@@ -362,14 +363,15 @@ pipeline {
                     results[it.join('-')].put("build", build_result)
                     results[it.join('-')].put("unit-test", unit_test_result)
                     results[it.join('-')].put("validation-test", validation_test_result)
-                  }
-                  catch (err) {
+                    }
+                    catch (err) {
                     results.put(it.join('-'), [:])
                     results[it.join('-')].put("runOn", ARCH)
                     results[it.join('-')].put("build", build_result)
                     results[it.join('-')].put("unit-test", unit_test_result)
                     results[it.join('-')].put("validation-test", validation_test_result)
                     error err
+                    }
                   }
                 }
               }
@@ -464,109 +466,109 @@ pipeline {
         }
       }
     }
-    stage('post-build'){
-      parallel {
-        stage('documentation') {
-          agent { label 'atsccs11' }
-          stages {
-            stage('build documentation') {
-              steps {
-                unstash 'repo'
-                sh "mkdir doxygen_doc || echo 'doxygen_doc Folder exists already'"
-                sh "doxygen"
-              }
-            }
-            stage('release documentation') {
-              when { branch 'master' }
-              steps {
-                sh "rm -rf /home/wwwsccs/html/mardyn/doc /home/wwwsccs/html/mardyn/doxys_docs"
-                sh "cp -r doc /home/wwwsccs/html/mardyn"
-                sh "cp -r doxygen_doc /home/wwwsccs/html/mardyn"
-                sh "chmod -R 775 /home/wwwsccs/html/mardyn/doc"
-                sh "chmod -R 775 /home/wwwsccs/html/mardyn/doxygen_doc"
-              }
-            }
-          }
-        }
-        stage('libs and generators') {
-          agent { label 'atsccs11' }
-          steps {
-            unstash 'repo'
-            dir('src') {
-              sh label: "Build libs", script: """
-                pwd
-                make -f ../makefile/Makefile.lib UNIT_TESTS=0 VTK=0 PARTYPE=SEQ TARGET=RELEASE -j3 clean
-                make -f ../makefile/Makefile.lib UNIT_TESTS=0 VTK=0 PARTYPE=SEQ TARGET=RELEASE -j3 lib
-              """
-            }
-
-            dir ('tools/gui') {
-              sh label: "Build generators", script: """
-                export VTKINCLUDEPATH=/usr/include/vtk-6.3
-                tar xfz ScenarioGenerator.tar.gz
-
-                qmake DEFINES+="MARDYN_DPDP" DropletGenerator.pro -o Makefile.droplet
-                qmake DEFINES+="MARDYN_DPDP" CubicGridGenerator.pro -o Makefile.cubic
-                qmake DEFINES+="MARDYN_DPDP" AqueousNaClGenerator.pro -o Makefile.aqueous
-                qmake DEFINES+="MARDYN_DPDP" CrystalLatticeGenerator.pro -o Makefile.crystal
-                qmake DEFINES+="MARDYN_DPDP" MS2RSTGenerator.pro -o Makefile.ms2
-                qmake DEFINES+="MARDYN_DPDP" RayleighTaylorGenerator.pro -o Makefile.rayleigh
-
-                rm -r libMardyn* || :
-
-                make -f Makefile.droplet -j2
-                make -f Makefile.cubic -j2
-                make -f Makefile.aqueous -j2
-                make -f Makefile.crystal -j2
-                make -f Makefile.ms2 -j2
-                make -f Makefile.rayleigh -j2
-              """
-            }
-
-            dir ('src') {
-              sh label: "Build again normally", script: """
-                export VTK_INCDIR=/usr/include/vtk-6.3
-                export VTK_LIBDIR=/usr/lib7
-                make cleanall
-                make TARGET=DEBUG PARTYPE=PAR PRECISION=DOUBLE OPENMP=0 \
-                  REDUCED_MEMORY_MODE=0 UNIT_TESTS=1 VECTORIZE_CODE=AVX2 VTK=1 -j4
-              """
-            }
-            dir ('executablerun') {
-                sh label: "Mktcts generator", script: """
-                  mv ../src/MarDyn*.PAR_DEBUG_AVX2 ./MarDyn
-                  chmod 770 ./MarDyn
-                  mpirun -n 2 ./MarDyn ../examples/Generators/mkTcTS/config.xml \
-                    --steps 100 --final-checkpoint=0
-                """
-            }
-
-            dir ('tools/standalone-generators/build') {
-                sh label: "Build package", script: """
-                    cmake ..
-                    make package
-                    make
-                """
-            }
-          }
-        }
-        stage('export-src') {
-          agent { label 'atsccs11' }
-          steps {
-            unstash 'repo'
-            sh './export-src.sh'
-            dir('unarchive') {
-              sh 'tar -xf ../Mardyn-src.tar.gz'
-              dir('src') {
-                sh 'make -j4'
-              }
-              dir('build') {
-                sh 'cmake .. && make -j4'
-              }
-            }
-          }
-        }
-      }
-    }
+    // stage('post-build'){
+    //   parallel {
+    //     stage('documentation') {
+    //       agent { label 'atsccs11' }
+    //       stages {
+    //         stage('build documentation') {
+    //           steps {
+    //             unstash 'repo'
+    //             sh "mkdir doxygen_doc || echo 'doxygen_doc Folder exists already'"
+    //             sh "doxygen"
+    //           }
+    //         }
+    //         stage('release documentation') {
+    //           when { branch 'master' }
+    //           steps {
+    //             sh "rm -rf /home/wwwsccs/html/mardyn/doc /home/wwwsccs/html/mardyn/doxys_docs"
+    //             sh "cp -r doc /home/wwwsccs/html/mardyn"
+    //             sh "cp -r doxygen_doc /home/wwwsccs/html/mardyn"
+    //             sh "chmod -R 775 /home/wwwsccs/html/mardyn/doc"
+    //             sh "chmod -R 775 /home/wwwsccs/html/mardyn/doxygen_doc"
+    //           }
+    //         }
+    //       }
+    //     }
+    //     stage('libs and generators') {
+    //       agent { label 'atsccs11' }
+    //       steps {
+    //         unstash 'repo'
+    //         dir('src') {
+    //           sh label: "Build libs", script: """
+    //             pwd
+    //             make -f ../makefile/Makefile.lib UNIT_TESTS=0 VTK=0 PARTYPE=SEQ TARGET=RELEASE -j3 clean
+    //             make -f ../makefile/Makefile.lib UNIT_TESTS=0 VTK=0 PARTYPE=SEQ TARGET=RELEASE -j3 lib
+    //           """
+    //         }
+    //
+    //         dir ('tools/gui') {
+    //           sh label: "Build generators", script: """
+    //             export VTKINCLUDEPATH=/usr/include/vtk-6.3
+    //             tar xfz ScenarioGenerator.tar.gz
+    //
+    //             qmake DEFINES+="MARDYN_DPDP" DropletGenerator.pro -o Makefile.droplet
+    //             qmake DEFINES+="MARDYN_DPDP" CubicGridGenerator.pro -o Makefile.cubic
+    //             qmake DEFINES+="MARDYN_DPDP" AqueousNaClGenerator.pro -o Makefile.aqueous
+    //             qmake DEFINES+="MARDYN_DPDP" CrystalLatticeGenerator.pro -o Makefile.crystal
+    //             qmake DEFINES+="MARDYN_DPDP" MS2RSTGenerator.pro -o Makefile.ms2
+    //             qmake DEFINES+="MARDYN_DPDP" RayleighTaylorGenerator.pro -o Makefile.rayleigh
+    //
+    //             rm -r libMardyn* || :
+    //
+    //             make -f Makefile.droplet -j2
+    //             make -f Makefile.cubic -j2
+    //             make -f Makefile.aqueous -j2
+    //             make -f Makefile.crystal -j2
+    //             make -f Makefile.ms2 -j2
+    //             make -f Makefile.rayleigh -j2
+    //           """
+    //         }
+    //
+    //         dir ('src') {
+    //           sh label: "Build again normally", script: """
+    //             export VTK_INCDIR=/usr/include/vtk-6.3
+    //             export VTK_LIBDIR=/usr/lib7
+    //             make cleanall
+    //             make TARGET=DEBUG PARTYPE=PAR PRECISION=DOUBLE OPENMP=0 \
+    //               REDUCED_MEMORY_MODE=0 UNIT_TESTS=1 VECTORIZE_CODE=AVX2 VTK=1 -j4
+    //           """
+    //         }
+    //         dir ('executablerun') {
+    //             sh label: "Mktcts generator", script: """
+    //               mv ../src/MarDyn*.PAR_DEBUG_AVX2 ./MarDyn
+    //               chmod 770 ./MarDyn
+    //               mpirun -n 2 ./MarDyn ../examples/Generators/mkTcTS/config.xml \
+    //                 --steps 100 --final-checkpoint=0
+    //             """
+    //         }
+    //
+    //         dir ('tools/standalone-generators/build') {
+    //             sh label: "Build package", script: """
+    //                 cmake ..
+    //                 make package
+    //                 make
+    //             """
+    //         }
+    //       }
+    //     }
+    //     stage('export-src') {
+    //       agent { label 'atsccs11' }
+    //       steps {
+    //         unstash 'repo'
+    //         sh './export-src.sh'
+    //         dir('unarchive') {
+    //           sh 'tar -xf ../Mardyn-src.tar.gz'
+    //           dir('src') {
+    //             sh 'make -j4'
+    //           }
+    //           dir('build') {
+    //             sh 'cmake .. && make -j4'
+    //           }
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
   }
 }
