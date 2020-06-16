@@ -1,6 +1,7 @@
 option(ENABLE_ADIOS "Enables the ADIOS2 writer type." ON)
-if(ENABLE_ADIOS)
+if(ENABLE_ADIOS AND ENABLE_MPI)
     message(STATUS "Installing Adios2.")
+    option(USE_INTERNAL_ADIOS "Download and build ADIOS2 in the ls1 build" OFF)
     ## set linkage for hazelhen
     if($ENV{CRAYPE_LINK_TYPE})
         set(LINK_TYPE $ENV{CRAYPE_LINK_TYPE})
@@ -13,6 +14,10 @@ if(ENABLE_ADIOS)
     endif()
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_ADIOS ${LINK_TYPE}")
+
+    if(NOT USE_INTERNAL_ADIOS)
+        find_package(ADIOS2 REQUIRED)
+    else()
 
     # Enable ExternalProject CMake module
     include(ExternalProject)
@@ -28,14 +33,10 @@ if(ENABLE_ADIOS)
     ExternalProject_Add(
         adios2
         GIT_REPOSITORY https://github.com/ornladios/ADIOS2.git
-        GIT_TAG master
+        GIT_TAG "v2.6.0"
         SOURCE_DIR ${ADIOS2_SOURCE_DIR}
         CMAKE_ARGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-          -DCMAKE_BUILD_TYPE=Release -DADIOS2_USE_BZip2=OFF
-          -DADIOS2_USE_Fortran=OFF -DADIOS2_USE_HDF5=OFF 
-          -DADIOS2_USE_Python=OFF -DADIOS2_USE_SST=OFF 
-          -DADIOS2_USE_SZ=OFF -DADIOS2_USE_SysVShMem=OFF 
-          -DADIOS2_USE_ZFP=OFF -DADIOS2_USE_ZeroMQ=OFF 
+          -DCMAKE_BUILD_TYPE=Release 
           -DADIOS2_BUILD_EXAMPLE=OFF -DADIOS2_BUILD_TESTING=OFF
           -DMPI_GUESS_LIBRARY_NAME=${MPI_GUESS_LIBRARY_NAME}
           -DCMAKE_INSTALL_PREFIX=${ADIOS2_INSTALL_DIR}
@@ -61,6 +62,7 @@ if(ENABLE_ADIOS)
         IMPORTED_LOCATION "${BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}/libadios2.so"
         INTERFACE_INCLUDE_DIRECTORIES "${ADIOS2_INCLUDE_DIR}"
     )
+    endif()
 else()
     # sad we have to do this, but cmake wont allow to create empty targets for linking
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/tmp/adios2_dummy.c)              # create an empty source file

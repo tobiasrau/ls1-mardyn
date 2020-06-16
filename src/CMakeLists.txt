@@ -62,15 +62,12 @@ TARGET_LINK_LIBRARIES(MarDyn
         ${LAPACK_LIB}  # for armadillo
         ${VTK_LIB}     # for VTK/xerces
         ${CPPUNIT_LIB} # for unit tests
-<<<<<<< HEAD
-        ${autopas_lib} # for autopas
 	    libzmq         # for insitu plugin
-	    libadios2      # for adios2 dependency
-=======
+	    #libadios2      # for adios2 dependency
+        adios2::adios2
         ${AUTOPAS_LIB} # for autopas
         ${LZ4_LIB}     # for LZ4 compression
         ${ALL_LIB}     # for ALL
->>>>>>> master
         )
 
 ADD_TEST(

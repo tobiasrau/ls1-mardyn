@@ -10,8 +10,7 @@
 /// Insitu Megamol Plugin Header. See the AdiosWriter class description for a manual on how to use the plugin
 ///
 
-#ifndef SRC_PLUGINS_AdiosWriter_H_
-#define SRC_PLUGINS_AdiosWriter_H_
+#pragma once
 
 #include "PluginBase.h"
 #include "molecules/MoleculeForwardDeclaration.h"
@@ -76,16 +75,17 @@ public:
 protected:
     // 
 private:
+  void initAdios();
     int getOffset(std::vector<int>&, int const);
     // output filename, from XML
     std::string fname;
+    uint32_t _writefrequency;
     // variables to write, see documentation
     std::map<std::string, std::vector<double> > vars;
     // main instance
-    adios2::ADIOS inst;
-    adios2::Engine engine;  
+    std::shared_ptr<adios2::ADIOS> inst;
+    std::shared_ptr<adios2::Engine> engine;  
     std::shared_ptr<adios2::IO> io;
 };
 }
 #endif // ENABLE_ADIOS
-#endif /* SRC_PLUGINS_REDUNDANCYRESILIENCE_H_ */
