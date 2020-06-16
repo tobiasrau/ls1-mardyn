@@ -31,7 +31,9 @@ void VirialProfile::output(string prefix, long unsigned accumulatedDatasets) {
 	double layerHeight = _samplInfo.globalLength[1] / _samplInfo.universalProfileUnit[1];
 	if (_samplInfo.cylinder) {
 		// V = height * PI * R^2
-		layerVolume = layerHeight * M_PI * _samplInfo.globalLength[0] * _samplInfo.globalLength[0];
+		// Get max radius of the cylinder inside the box domain
+		double radius = _samplInfo.globalLength[0]/2;
+		layerVolume = layerHeight * M_PI * radius * radius;
 	} else {
 		// V = height * X * Z
 		layerVolume = layerHeight * _samplInfo.globalLength[0] * _samplInfo.globalLength[2];
@@ -57,12 +59,18 @@ void VirialProfile::output(string prefix, long unsigned accumulatedDatasets) {
 		for (unsigned a = 0; a < _samplInfo.universalProfileUnit[0]; a++) {
 			for (unsigned b = 0; b < _samplInfo.universalProfileUnit[2]; b++) {
 				if (_samplInfo.cylinder) {
+					// CRUCIAL:
+					// Do not change unID calculation. Has to be the same as in SpatialProfile.cpp
+					// VirialProfile overwrites the default output routine of ProfileBase, so has to calculate unID on its own
 					unID = (unsigned long) (y * _samplInfo.universalProfileUnit[0] * _samplInfo.universalProfileUnit[2]
 											+ a * _samplInfo.universalProfileUnit[2] + b);
 				} else {
+					// CRUCIAL:
+					// Do not change unID calculation. Has to be the same as in SpatialProfile.cpp
+					// VirialProfile overwrites the default output routine of ProfileBase, so has to calculate unID on its own
 					unID = (unsigned long) (
-							a * _samplInfo.universalProfileUnit[0] * _samplInfo.universalProfileUnit[2] +
-							y * _samplInfo.universalProfileUnit[1] + b);
+							a * _samplInfo.universalProfileUnit[1] * _samplInfo.universalProfileUnit[2] +
+							y * _samplInfo.universalProfileUnit[2] + b);
 				}
 				// Add pressures
 				Px += _global3dProfile[unID][0];

@@ -20,6 +20,17 @@ void DomainDecomposition::initMPIGridDims() {
 	mardyn_assert(DIMgeom == 3);
 	int period[DIMgeom] = {1, 1, 1}; // 1(true) when using periodic boundary conditions in the corresponding dimension
 	int reorder = 1; // 1(true) if the ranking may be reordered by MPI_Cart_create
+	{
+		auto numProcsGridSize = _gridSize[0] * _gridSize[1] * _gridSize[2];
+		if (numProcsGridSize != _numProcs and numProcsGridSize != 0) {
+			global_log->error() << "DomainDecomposition: Wrong grid size given!" << std::endl;
+			global_log->error() << "\tnumProcs is " << _numProcs << "," << std::endl;
+			global_log->error() << "\tbut grid is " << _gridSize[0] << " x " << _gridSize[1] << " x " << _gridSize[2] << std::endl;
+			global_log->error() << "\tresulting in " << numProcsGridSize << " subdomains!" << std::endl;
+			global_log->error() << "\tplease check your input file!" << std::endl;
+			Simulation::exit(2134);
+		}
+	}
 
 	MPI_CHECK(MPI_Dims_create( _numProcs, DIMgeom, (int *) &_gridSize ));
 	MPI_CHECK(MPI_Cart_create(MPI_COMM_WORLD, DIMgeom, _gridSize, period, reorder, &_comm));
@@ -68,12 +79,22 @@ bool DomainDecomposition::queryBalanceAndExchangeNonBlocking(bool /*forceRebalan
 
 void DomainDecomposition::balanceAndExchange(double /*lastTraversalTime*/, bool /*forceRebalancing*/, ParticleContainer* moleculeContainer,
 		Domain* domain) {
-	if(sendLeavingWithCopies()){
-		DomainDecompMPIBase::exchangeMoleculesMPI(moleculeContainer, domain, LEAVING_AND_HALO_COPIES);
-	}else{
-		DomainDecompMPIBase::exchangeMoleculesMPI(moleculeContainer, domain, LEAVING_ONLY);
-		moleculeContainer->deleteOuterParticles();
-		DomainDecompMPIBase::exchangeMoleculesMPI(moleculeContainer, domain, HALO_COPIES);
+	if (not moleculeContainer->isInvalidParticleReturner() or moleculeContainer->hasInvalidParticles()) {
+		if (sendLeavingWithCopies()) {
+			//global_log->info() << "DD: Sending Leaving and Halos." << std::endl;
+			DomainDecompMPIBase::exchangeMoleculesMPI(moleculeContainer, domain, LEAVING_AND_HALO_COPIES);
+		} else {
+			//global_log->info() << "DD: Sending Leaving." << std::endl;
+			DomainDecompMPIBase::exchangeMoleculesMPI(moleculeContainer, domain, LEAVING_ONLY);
+#ifndef MARDYN_AUTOPAS
+			moleculeContainer->deleteOuterParticles();
+#endif
+			//global_log->info() << "DD: Sending Halos." << std::endl;
+			DomainDecompMPIBase::exchangeMoleculesMPI(moleculeContainer, domain, HALO_COPIES);
+		}
+	} else {
+		//global_log->info() << "DD: Sending Halos." << std::endl;
+		DomainDecompMPIBase::exchangeMoleculesMPI(moleculeContainer, domain, HALO_COPIES, false /*dohaloPositionCheck*/);
 	}
 }
 
@@ -89,17 +110,6 @@ void DomainDecomposition::readXML(XMLfileUnits& xmlconfig) {
 	}
 }
 
-bool DomainDecomposition::procOwnsPos(double x, double y, double z, Domain* domain) {
-	if (x < getBoundingBoxMin(0, domain) || x >= getBoundingBoxMax(0, domain))
-		return false;
-	else if (y < getBoundingBoxMin(1, domain) || y >= getBoundingBoxMax(1, domain))
-		return false;
-	else if (z < getBoundingBoxMin(2, domain) || z >= getBoundingBoxMax(2, domain))
-		return false;
-	else
-		return true;
-}
-
 double DomainDecomposition::getBoundingBoxMin(int dimension, Domain* domain) {
 	return _coords[dimension] * domain->getGlobalLength(dimension) / _gridSize[dimension];
 }
@@ -111,7 +121,7 @@ double DomainDecomposition::getBoundingBoxMax(int dimension, Domain* domain) {
 	return (_coords[dimension] + 1) * domain->getGlobalLength(dimension) / _gridSize[dimension];
 }
 
-void DomainDecomposition::printDecomp(string filename, Domain* domain) {
+void DomainDecomposition::printDecomp(const string& filename, Domain* domain) {
 
 	if (_rank == 0) {
 		ofstream povcfgstrm(filename.c_str());

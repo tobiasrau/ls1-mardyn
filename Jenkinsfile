@@ -80,25 +80,63 @@ pipeline {
       agent { label 'atsccs11' }
       stages {
         stage('build with autopas') {
-          steps {
-            unstash 'repo'
-            dir ("build"){
-              sh """
-                cmake -DENABLE_AUTOPAS=ON -DOPENMP=ON -DENABLE_UNIT_TESTS=1 ..
-                make -j8
-              """
+          parallel {
+            stage('build sequential') {
+              steps {
+                unstash 'repo'
+                dir ("build"){
+                  sh """
+                    cmake -DENABLE_AUTOPAS=ON -DOPENMP=ON -DENABLE_UNIT_TESTS=1 ..
+                    make -j4
+                  """
+                }
+                stash includes: "build/src/MarDyn", name: "autopas_exec"
+              }
             }
-            stash includes: "build/src/MarDyn", name: "autopas_exec"
+            stage('build MPI') {
+              steps {
+                unstash 'repo'
+                sh "rm -rf libs/ALL/ALL"
+                sh "cp -r /work/jenkins/ALL libs/ALL/ALL"
+                dir ("build-mpi"){
+                  sh """
+                    CC=mpicc CXX=mpicxx cmake -DENABLE_ALLLBL=ON -DENABLE_MPI=ON -DENABLE_AUTOPAS=ON -DOPENMP=ON -DENABLE_UNIT_TESTS=1 ..
+                    make -j4
+                  """
+                }
+                stash includes: "build-mpi/src/MarDyn", name: "autopas_mpi_exec"
+              }
+            }
           }
         }
         stage('unit test with autopas') {
-          steps {
-            unstash 'repo'
-            unstash 'autopas_exec'
-            dir ("build"){
-              sh """
-                ./src/MarDyn -t -d ../test_input/
-              """
+          parallel {
+            stage('test sequential') {
+              steps {
+                dir("seq"){
+                  unstash 'repo'
+                  unstash 'autopas_exec'
+                  dir ("build"){
+                    sh """
+                      ./src/MarDyn -t -d ../test_input/
+                    """
+                  }
+                }
+              }
+            }
+            stage('test mpi') {
+              steps {
+                dir("mpi"){
+                  unstash 'repo'
+                  unstash 'autopas_mpi_exec'
+                  dir ("build-mpi"){
+                    sh """
+                      mpirun -n 1 ./src/MarDyn -t -d ../test_input/
+                      mpirun -n 4 ./src/MarDyn -t -d ../test_input/
+                    """
+                  }
+                }
+              }
             }
           }
         }
@@ -129,6 +167,40 @@ pipeline {
                   dir ("build"){
                     sh """
                       ./src/MarDyn ../examples/Argon/200K_18mol_l/config_autopas_soa.xml --steps=20 | tee autopas_run_log.txt
+                      grep "Simstep = 20" autopas_run_log.txt > simstep20.txt
+                      grep "T = 0.000633975" simstep20.txt
+                      grep "U_pot = -2.14161" simstep20.txt
+                      grep "p = 5.34057e-07" simstep20.txt
+                    """
+                  }
+                }
+              }
+            }
+            stage('run with autopas DD') {
+              steps {
+                dir('ddtest'){
+                  unstash 'repo'
+                  unstash 'autopas_mpi_exec'
+                  dir ("build-mpi"){
+                    sh """
+                      mpirun -n 4 ./src/MarDyn ../examples/Argon/200K_18mol_l/config_autopas_aos.xml --steps=20 | tee autopas_run_log.txt
+                      grep "Simstep = 20" autopas_run_log.txt > simstep20.txt
+                      grep "T = 0.000633975" simstep20.txt
+                      grep "U_pot = -2.14161" simstep20.txt
+                      grep "p = 5.34057e-07" simstep20.txt
+                    """
+                  }
+                }
+              }
+            }
+            stage('run with autopas ALLLB') {
+              steps {
+                dir('alltest'){
+                  unstash 'repo'
+                  unstash 'autopas_mpi_exec'
+                  dir ("build-mpi"){
+                    sh """
+                      mpirun -n 2 ./src/MarDyn ../examples/Argon/200K_18mol_l/config_autopas_lc_ALL.xml --steps=20 | tee autopas_run_log.txt
                       grep "Simstep = 20" autopas_run_log.txt > simstep20.txt
                       grep "T = 0.000633975" simstep20.txt
                       grep "U_pot = -2.14161" simstep20.txt
@@ -293,7 +365,8 @@ pipeline {
                                 "surface-tension_LRC_CO2_Merker_280",
                                 "simple-lj_kdd",
                                 "simple-lj-direct-mp",
-                                "simple-lj-direct"
+                                "simple-lj-direct",
+                                "LRC_planar_2020"
                               ]
                               def legacyCellProcessorOptions = ((VECTORIZE_CODE == "NOVEC") && (REDUCED_MEMORY_MODE == "0") ? [false, true] : [false])
                               for (legacyCellProcessor in legacyCellProcessorOptions) {
@@ -336,8 +409,7 @@ pipeline {
                                               -n ./${it.join('-')} \
                                               $legacyCellProcessorOption \
                                               $allmpi \
-                                              -c \"\$(realpath \$(find ../../validationInput/$configDirVar/ -type f -name *.xml) )\" \
-                                              -i \"\$(realpath \$(find ../../validationInput/$configDirVar/ -type f \\( -iname \\*.dat -o -iname \\*.inp -o -iname \\*.xdr \\)) )\" \
+                                              -c \"\$(realpath ../../validationInput/$configDirVar/config.xml)\" \
                                               $plugins $icount $sameParTypeOption $mpicmd $mpiextra
                                           """
                                         }
@@ -379,14 +451,14 @@ pipeline {
           // https://issues.jenkins-ci.org/browse/JENKINS-49826
           matrixBuilder = { def matrix, int level ->
             // Fail the entire pipeline if one step fails
-            variations.failFast = true
+            variations.failFast = false
             // HACK Jobs to manage resource allocation on the knl cluster
             variations["slurm"] = {
               try {
                 node("KNL_PRIO") { // Executor on the CoolMUC3 login node reserved for slurm allocation and management
                   parallel "allocation": {
                     try {
-                      timeout(time: 6, unit: 'HOURS') {
+                      timeout(time: 10, unit: 'HOURS') {
                         // Allocate a new interactive job with up to three nodes
                         // and one hour maximum run time. The ci-matrix will
                         // attach subjobs to this via srun and the slurm.slurmcontrol
@@ -396,8 +468,8 @@ pipeline {
                         sh """
                           export SLURM_CONF=$HOME/slurm.conf
                           salloc --job-name=mardyn-test --nodes=1-4 --partition=mpp3_batch\
-                            --tasks-per-node=3 --time=01:00:00 --begin=now+150\
-                            sleep 1h || echo 0
+                            --tasks-per-node=3 --time=04:00:00 --begin=now+150\
+                            sleep 4h || echo 0
                           sleep 6h
                         """
                       }

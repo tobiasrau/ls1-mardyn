@@ -26,6 +26,12 @@ void SpatialProfile::readXML(XMLfileUnits& xmlconfig) {
 	global_log->info() << "[SpatialProfile] Output prefix: " << _outputPrefix << endl;
 	xmlconfig.getNodeValue("mode", _mode);
 	global_log->info() << "[SpatialProfile] Mode " << _mode << endl;
+	xmlconfig.getNodeValue("profiledComponent", _profiledCompString);
+	global_log->info() << "[SpatialProfile] Profiled Component:" << _profiledCompString << endl;
+	
+	if (_profiledCompString != "all") {
+		_profiledComp = std::stoi(_profiledCompString);
+	}
 
 	if (_mode == "cylinder") {
 		xmlconfig.getNodeValue("r", samplInfo.universalProfileUnit[0]);
@@ -209,20 +215,42 @@ void SpatialProfile::endStep(ParticleContainer* particleContainer, DomainDecompB
 		long uID;
 
 		// Loop over all particles and bin them with uIDs
-		for (auto thismol = particleContainer->iterator(); thismol.isValid(); ++thismol) {
-			// Get uID
-			if (samplInfo.cylinder) {
-				uID = getCylUID(thismol);
-				if (uID == -1) {
-					// Invalid uID -> Molecule not in cylinder -> continue
-					continue;
+		for (auto thismol = particleContainer->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); thismol.isValid(); ++thismol) {
+			
+			if ((_profiledCompString != "all") && (thismol->componentid() == _profiledComp-1)) {
+				
+				// Get uID
+				if (samplInfo.cylinder) {
+					uID = getCylUID(thismol);
+					if (uID == -1) {
+						// Invalid uID -> Molecule not in cylinder -> continue
+						continue;
+					}
+				} else {
+					uID = getCartesianUID(thismol);
 				}
-			} else {
-				uID = getCartesianUID(thismol);
+				// pass mol + uID to all profiles
+				for (unsigned i = 0; i < _profiles.size(); i++) {
+					_profiles[i]->record(*thismol, (unsigned) uID);
+				}
 			}
-			// pass mol + uID to all profiles
-			for (unsigned i = 0; i < _profiles.size(); i++) {
-				_profiles[i]->record(*thismol, (unsigned) uID);
+			
+			if (_profiledCompString == "all"){
+							
+				// Get uID
+				if (samplInfo.cylinder) {
+					uID = getCylUID(thismol);
+					if (uID == -1) {
+						// Invalid uID -> Molecule not in cylinder -> continue
+						continue;
+					}
+				} else {
+					uID = getCartesianUID(thismol);
+				}
+				// pass mol + uID to all profiles
+				for (unsigned i = 0; i < _profiles.size(); i++) {
+					_profiles[i]->record(*thismol, (unsigned) uID);
+				}
 			}
 		}
 
@@ -275,6 +303,15 @@ void SpatialProfile::endStep(ParticleContainer* particleContainer, DomainDecompB
 	}
 }
 
+/**
+ * @brief getCartesianUID samples the domain cartesian coordinate bins.
+ *
+ * The calculation of uID has to be the same as used in the actual sampling profiles.
+ * E.g. ProfileBase / Child classes of Profile Base.
+ *
+ * @param thismol
+ * @return
+ */
 unsigned long SpatialProfile::getCartesianUID(ParticleIterator& thismol) {
 	auto xun = (unsigned) floor(thismol->r(0) * samplInfo.universalInvProfileUnit[0]);
 	auto yun = (unsigned) floor(thismol->r(1) * samplInfo.universalInvProfileUnit[1]);

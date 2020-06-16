@@ -15,34 +15,33 @@
 
 TEST_SUITE_REGISTRATION(DomainDecompositionTest);
 
-DomainDecompositionTest::DomainDecompositionTest() {
-}
+DomainDecompositionTest::DomainDecompositionTest() = default;
 
-DomainDecompositionTest::~DomainDecompositionTest() {
-}
+DomainDecompositionTest::~DomainDecompositionTest() = default;
 
 void DomainDecompositionTest::testNoDuplicatedParticlesFilename(const char * filename, double cutoff) {
 	// original pointer will be deleted by tearDown() (delete global_simulation)
 	_domainDecomposition = new DomainDecomposition();
 
-	ParticleContainer* container = initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff);
-	int numMols = container->getNumberOfParticles();
+	std::unique_ptr<ParticleContainer> container{
+		initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff)};
+	auto numMols = container->getNumberOfParticles();
 
 	_domainDecomposition->collCommInit(1);
-	_domainDecomposition->collCommAppendInt(numMols);
+	_domainDecomposition->collCommAppendUnsLong(numMols);
 	_domainDecomposition->collCommAllreduceSum();
-	numMols = _domainDecomposition->collCommGetInt();
+	numMols = _domainDecomposition->collCommGetUnsLong();
 	_domainDecomposition->collCommFinalize();
 
-	_domainDecomposition->balanceAndExchange(0., true, container, _domain);
+	_domainDecomposition->balanceAndExchange(0., true, container.get(), _domain);
 	container->deleteOuterParticles();
 
-	int newNumMols = container->getNumberOfParticles();
+	auto newNumMols = container->getNumberOfParticles();
 
 	_domainDecomposition->collCommInit(1);
-	_domainDecomposition->collCommAppendInt(newNumMols);
+	_domainDecomposition->collCommAppendUnsLong(newNumMols);
 	_domainDecomposition->collCommAllreduceSum();
-	newNumMols = _domainDecomposition->collCommGetInt();
+	newNumMols = _domainDecomposition->collCommGetUnsLong();
 	_domainDecomposition->collCommFinalize();
 
 	ASSERT_EQUAL(numMols, newNumMols);
@@ -55,16 +54,16 @@ void DomainDecompositionTest::testNoDuplicatedParticles() {
 }
 
 void DomainDecompositionTest::testNoLostParticlesFilename(const char * filename, double cutoff) {
-	// original pointer will be deleted by tearDown() (delete global_simulation)
 	_domainDecomposition = new DomainDecomposition();
 
-	ParticleContainer* container = initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff);
-	int numMols = container->getNumberOfParticles();
+	std::unique_ptr<ParticleContainer> container{
+		initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff)};
+	auto numMols = container->getNumberOfParticles();
 
 	_domainDecomposition->collCommInit(1);
-	_domainDecomposition->collCommAppendInt(numMols);
+	_domainDecomposition->collCommAppendUnsLong(numMols);
 	_domainDecomposition->collCommAllreduceSum();
-	numMols = _domainDecomposition->collCommGetInt();
+	numMols = _domainDecomposition->collCommGetUnsLong();
 	_domainDecomposition->collCommFinalize();
 
 
@@ -77,7 +76,7 @@ void DomainDecompositionTest::testNoLostParticlesFilename(const char * filename,
 	std::set<unsigned long> lower[3];  // the id of particles that were close to the lower boundary in the specific dimension are stored here
 	std::set<unsigned long> upper[3];  // the id of particles that were close to the upper boundary in the specific dimension are stored here
 
-	for (auto m = container->iterator(); m.isValid(); ++m) {
+	for (auto m = container->iterator(ParticleIterator::ALL_CELLS); m.isValid(); ++m) {
 		for (int dim = 0; dim < 3; dim++) {
 			if (m->r(dim) < bBoxMin[dim] + cutoff / 2.) {
 				// we shift particles close to the lower boundary to outside of the lower boundary.
@@ -100,21 +99,21 @@ void DomainDecompositionTest::testNoLostParticlesFilename(const char * filename,
 
 	container->update();
 
-	_domainDecomposition->balanceAndExchange(0., true, container, _domain);
+	_domainDecomposition->balanceAndExchange(0., true, container.get(), _domain);
 	container->deleteOuterParticles();
 
-	int newNumMols = container->getNumberOfParticles();
+	auto newNumMols = container->getNumberOfParticles();
 
 	_domainDecomposition->collCommInit(1);
-	_domainDecomposition->collCommAppendInt(newNumMols);
+	_domainDecomposition->collCommAppendUnsLong(newNumMols);
 	_domainDecomposition->collCommAllreduceSum();
-	newNumMols = _domainDecomposition->collCommGetInt();
+	newNumMols = _domainDecomposition->collCommGetUnsLong();
 	_domainDecomposition->collCommFinalize();
 
 	//_domain->writeCheckpoint("dump.txt", container, _domainDecomposition, false);
 	ASSERT_EQUAL(numMols, newNumMols);
 
-	for (auto m = container->iterator(); m.isValid(); ++m) {
+	for (auto m = container->iterator(ParticleIterator::ALL_CELLS); m.isValid(); ++m) {
 		for (int dim = 0; dim < 3; dim++) {
 			if (lower[dim].count(m->getID())) {
 				// We make sure, that these particles are now at the top part of the domain.
@@ -146,7 +145,7 @@ void DomainDecompositionTest::testExchangeMolecules1Proc() {
 	unsigned int count[3] = {0};
 	ASSERT_EQUAL(3ul, container->getNumberOfParticles());
 
-	auto m = container->iterator();
+	auto m = container->iterator(ParticleIterator::ALL_CELLS);
 	while ( m.isValid()) {
 		count[m->getID()]++;
 		++m;
@@ -159,9 +158,13 @@ void DomainDecompositionTest::testExchangeMolecules1Proc() {
 
 	// after the exchange, there have to be 21 copies in the halos, i.e. 24 molecules in total
 	_domainDecomposition->exchangeMolecules(container, _domain);
-	ASSERT_EQUAL(24ul, container->getNumberOfParticles());
 
-	m = container->iterator();
+	//ASSERT_EQUAL(24ul, container->getNumberOfParticles());
+	size_t molCount = 0;
+	for(auto iter = container->iterator(ParticleIterator::ALL_CELLS); iter.isValid(); ++iter) ++molCount;
+	ASSERT_EQUAL(24ul, molCount);
+
+	m = container->iterator(ParticleIterator::ALL_CELLS);
 	while(m.isValid()) {
 		count[m->getID()]++;
 		++m;

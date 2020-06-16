@@ -100,7 +100,7 @@ void Domain::readXML(XMLfileUnits& xmlconfig) {
 	bool bInputOk = true;
 	double temperature = 0.;
 	bInputOk = bInputOk && xmlconfig.getNodeValueReduced("temperature", temperature);
-	if(true == bInputOk) {
+	if(bInputOk) {
 		setGlobalTemperature(temperature);
 		global_log->info() << "Temperature: " << temperature << endl;
 	}
@@ -268,7 +268,7 @@ void Domain::calculateGlobalValues(
 			{
 
 				double Utrans, Urot, limit_rot_energy, vcorr, Dcorr;
-				for (auto tM = particleContainer->iterator(); tM.isValid(); ++tM) {
+				for (auto tM = particleContainer->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); tM.isValid(); ++tM) {
 					Utrans = tM->U_trans();
 					if (Utrans > limit_energy) {
 						vcorr = sqrt(limit_energy / Utrans);
@@ -377,7 +377,7 @@ void Domain::calculateThermostatDirectedVelocity(ParticleContainer* partCont)
 		{
 			std::map<int, std::array<double, 3> > localThermostatDirectedVelocity_thread;
 
-			for(auto tM = partCont->iterator(); tM.isValid(); ++tM) {
+			for(auto tM = partCont->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); tM.isValid(); ++tM) {
 				int cid = tM->componentid();
 				int thermostat = this->_componentToThermostatIdMap[cid];
 
@@ -404,7 +404,7 @@ void Domain::calculateThermostatDirectedVelocity(ParticleContainer* partCont)
 		#pragma omp parallel reduction(+ : velX, velY, velZ)
 		#endif
 		{
-			for(auto tM = partCont->iterator(); tM.isValid(); ++tM) {
+			for(auto tM = partCont->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); tM.isValid(); ++tM) {
 				velX += tM->v(0);
 				velY += tM->v(1);
 				velZ += tM->v(2);
@@ -421,7 +421,7 @@ void Domain::calculateVelocitySums(ParticleContainer* partCont)
 {
 	if(this->_componentwiseThermostat)
 	{
-		for(auto tM = partCont->iterator(); tM.isValid(); ++tM)
+		for(auto tM = partCont->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); tM.isValid(); ++tM)
 		{
 			int cid = tM->componentid();
 			int thermostat = this->_componentToThermostatIdMap[cid];
@@ -450,7 +450,7 @@ void Domain::calculateVelocitySums(ParticleContainer* partCont)
 		#endif
 		{
 
-			for(auto tM = partCont->iterator(); tM.isValid(); ++tM) {
+			for(auto tM = partCont->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); tM.isValid(); ++tM) {
 				++N;
 				rotationalDOF += tM->component()->getRotationalDegreesOfFreedom();
 				if(this->_universalUndirectedThermostat[0]) {
@@ -583,7 +583,7 @@ void Domain::writeCheckpointHeaderXML(string filename, ParticleContainer* partic
 	ofs << "\t\t</length>" << endl;
 	ofs.flags(f);  // restore default format flags
 	ofs << "\t\t<number>" << _globalNumMolecules << "</number>" << endl;
-	ofs << "\t\t<format type=\"ICRVQD\"/>" << endl;
+	ofs << "\t\t<format type=\"" << Molecule::getWriteFormat() << "\"/>" << endl;
 	ofs << "\t</headerinfo>" << endl;
 	ofs << "</mardyn>" << endl;
 }
@@ -604,7 +604,7 @@ void Domain::writeCheckpoint(string filename,
 	// update global number of particles
 	this->updateglobalNumMolecules(particleContainer, domainDecomp);
 
-	if (useBinaryFormat == true) {
+	if (useBinaryFormat) {
 		this->writeCheckpointHeaderXML((filename + ".header.xml"), particleContainer, domainDecomp, currentTime);
 	} else {
 		this->writeCheckpointHeader(filename, particleContainer, domainDecomp, currentTime);
@@ -731,6 +731,25 @@ void Domain::updateglobalNumMolecules(ParticleContainer* particleContainer, Doma
 	numMolecules.global = domainDecomp->collCommGetUnsLong();
 	domainDecomp->collCommFinalize();
 	this->setglobalNumMolecules(numMolecules.global);
+}
+
+CommVar<uint64_t> Domain::getMaxMoleculeID() const {
+	return _maxMoleculeID;
+}
+
+void Domain::updateMaxMoleculeID(ParticleContainer* particleContainer, DomainDecompBase* domainDecomp)
+{
+	_maxMoleculeID.local = 0;
+	for(auto pit = particleContainer->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); pit.isValid(); ++pit) {
+		uint64_t pid = pit->getID();
+		if(pid > _maxMoleculeID.local)
+			_maxMoleculeID.local = pid;
+	}
+#ifdef ENABLE_MPI
+	MPI_Allreduce(&_maxMoleculeID.local, &_maxMoleculeID.global, 1, MPI_UNSIGNED_LONG, MPI_MAX, MPI_COMM_WORLD);
+#else
+	_maxMoleculeID.global = _maxMoleculeID.local;
+#endif
 }
 
 double Domain::getglobalRho(){ return _globalRho;}

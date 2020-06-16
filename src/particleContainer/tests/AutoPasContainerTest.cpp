@@ -9,11 +9,10 @@
 
 TEST_SUITE_REGISTRATION(AutoPasContainerTest);
 
-void AutoPasContainerTest::testConstructor() { AutoPasContainer container; }
+void AutoPasContainerTest::testConstructor() { AutoPasContainer container(1.); }
 
 void AutoPasContainerTest::testUpdate() {
-	AutoPasContainer autoPasContainer;
-	autoPasContainer.setCutoff(1.);
+	AutoPasContainer autoPasContainer(1.);
 	double min[3] = {0., 0., 0.};
 	double max[3] = {10., 10., 10.};
 	autoPasContainer.rebuild(min, max);
@@ -29,7 +28,7 @@ void AutoPasContainerTest::testUpdate() {
 	}
 	std::set<unsigned long> movedIDs;
 	// we move particles that are close to the boundary to outside of the container and remember the id's we moved
-	for(auto iter = autoPasContainer.iterator(); iter.isValid(); ++iter){
+	for(auto iter = autoPasContainer.iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY); iter.isValid(); ++iter){
 		for(unsigned short dim = 0; dim < 3; ++dim){
 			if(iter->getR()[dim] < 0.5){
 				auto r = iter->getR();

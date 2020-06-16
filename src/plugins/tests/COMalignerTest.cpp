@@ -19,13 +19,13 @@ void COMalignerTest::testCOMalign() {
 
     const char* filename = "1clj-regular-2x2x2-offset.inp";
     double cutoff = .5;
-    ParticleContainer* container = initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff);
+	std::unique_ptr<ParticleContainer> container{
+		initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff)};
 
+	std::unique_ptr<COMaligner> plugin {new COMaligner()};
 
-    COMaligner* plugin = new COMaligner();
-
-    plugin->init(container, _domainDecomposition, _domain);
-    plugin->beforeForces(container, _domainDecomposition, 1);
+    plugin->init(container.get(), _domainDecomposition, _domain);
+    plugin->beforeForces(container.get(), _domainDecomposition, 1);
 
     double m = plugin->_mass;
     if (_domainDecomposition->getNumProcs() != 1) {
@@ -43,10 +43,11 @@ void COMalignerTest::testCOMalign() {
     ASSERT_EQUAL_MSG("z motion is wrong", -.25, plugin->_motion[2]);
 
     // initialize oldContainer only now, to prevent it from interfering with anything relevant!
-    ParticleContainer* oldContainer = initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff);
-    // TEST IF MOTION WAS APPLIED
-    auto newPos = container->iterator();
-    auto oldPos = oldContainer->iterator();
+	std::unique_ptr<ParticleContainer> oldContainer{
+		initializeFromFile(ParticleContainerFactory::LinkedCell, filename, cutoff)};
+	// TEST IF MOTION WAS APPLIED
+    auto newPos = container->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY);
+    auto oldPos = oldContainer->iterator(ParticleIterator::ONLY_INNER_AND_BOUNDARY);
     while(newPos.isValid()){
         for(int d = 0; d < 3; d++){
             ASSERT_EQUAL_MSG("Motion has not been properly applied" ,oldPos->r(d) - .25, newPos->r(d));

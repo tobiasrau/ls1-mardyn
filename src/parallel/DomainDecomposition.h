@@ -39,9 +39,6 @@ public:
 	void readXML(XMLfileUnits& xmlconfig) override;
 
 	// documentation see father class (DomainDecompBase.h)
-	bool procOwnsPos(double x, double y, double z, Domain* domain) override;
-
-	// documentation see father class (DomainDecompBase.h)
 	double getBoundingBoxMin(int dimension, Domain* domain) override;
 
 	// documentation see father class (DomainDecompBase.h)
@@ -76,7 +73,7 @@ public:
 	//!  8 8
 	//! @param filename name of the file into which the data will be written
 	//! @param domain e.g. needed to get the bounding boxes
-	void printDecomp(std::string filename, Domain* domain) override;
+	void printDecomp(const std::string& filename, Domain* domain) override;
 
 	void initCommunicationPartners(double cutoffRadius, Domain * domain,ParticleContainer* moleculeContainer);
 

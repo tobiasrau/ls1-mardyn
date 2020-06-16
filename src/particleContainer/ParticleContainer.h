@@ -101,6 +101,11 @@ public:
 	//! invalid. This method restores a valid representation.
 	virtual void update() = 0;
 
+	/**
+	 * Same as ParticleContainer:update() but forces the update.
+	 */
+	virtual void forcedUpdate() { update(); }
+
 	//! @brief add a single Molecule to the ParticleContainer.
 	//!
 	//! Note: a copy of the particle is pushed. Destroying the argument is
@@ -154,8 +159,8 @@ public:
 
 	virtual void traversePartialInnermostCells(CellProcessor& cellProcessor, unsigned int stage, int stageCount) = 0;
 
-	virtual ParticleIterator iterator (ParticleIterator::Type t = ParticleIterator::ALL_CELLS) = 0;
-	virtual RegionParticleIterator regionIterator (const double startCorner[3], const double endCorner[3], ParticleIterator::Type t = ParticleIterator::ALL_CELLS) = 0;
+	virtual ParticleIterator iterator (ParticleIterator::Type t) = 0;
+	virtual RegionParticleIterator regionIterator (const double startCorner[3], const double endCorner[3], ParticleIterator::Type t) = 0;
 
 	//! @return the number of particles stored in this container
 	//!
@@ -192,10 +197,14 @@ public:
 	virtual double get_halo_L(int index) const = 0;
 
 
-	virtual double getCutoff() = 0;
+	virtual double getCutoff() const = 0;
+
+	virtual double getInteractionLength() const {return getCutoff();}
+
+	virtual double getSkin() const {return 0.;}
 
     /* TODO: Have a look on this */
-	virtual void deleteMolecule(Molecule& molecule, const bool& rebuildCaches) = 0;
+	virtual void deleteMolecule(ParticleIterator& moleculeIter, const bool& rebuildCaches) = 0;
 
     /* TODO goes into grand canonical ensemble */
 	virtual double getEnergy(ParticlePairsHandler* particlePairsHandler, Molecule* m1, CellProcessor& cellProcessor) = 0;
@@ -230,6 +239,14 @@ public:
 	virtual double* getCellLength() = 0;
 
 	/**
+	 * Return the size of the halo
+	 * @return
+	 */
+	virtual double* getHaloSize() {
+		return getCellLength();
+	};
+
+	/**
 	 * Get a statistics of the cells found in this container.
 	 * @return A vector, where particleCellStatistics[partCount] represents the number of cells with partCount particles.
 	 */
@@ -240,6 +257,13 @@ public:
 	 * @param rc
 	 */
 	virtual void setCutoff(double rc){};
+
+	virtual std::vector<Molecule> getInvalidParticles() { return {}; }
+
+	virtual bool isInvalidParticleReturner() { return false; }
+
+	virtual bool hasInvalidParticles() { return false; }
+
 protected:
 
 	//!  coordinates of the left, lower, front corner of the bounding box

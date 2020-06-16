@@ -30,6 +30,9 @@ class RDFCellProcessor;
  * - for each bin: calculate the number density (i.e. number of particles per volume)
  *   of the corresponding shell
  * - divide the number density by the number density of the system.
+ 
+ *Update: Optionally, the RDF can be additionally resolved in angular direction, by chosing angularbins > 1 in the input. Phi is the angle between the central molecules orientation vector and the vector connecting the pair of molecules. 
+ *The angular coordinate is given and discretized in terms of the cosine of the angle cos(phi), to ensure equal control volume sizes for equal distance R
  */
 class RDF : public PluginBase {
 
@@ -86,6 +89,24 @@ public:
 	//! count the number of molecules per component
 	//! @todo: remove it and replace it by component.getNumMolecules()
 	void accumulateNumberOfMolecules(std::vector<Component>& components);
+	
+	void observeARDFMolecule(double dd, double cosPhi, double cosPhiReverse, unsigned cid1, unsigned cid2) {
+		
+		if(dd > _maxDistanceSquare) { return; }
+		size_t distanceBinID = floor( sqrt(dd) / binwidth() );
+		size_t angularBinID = floor( (-cosPhi + 1.)/ angularbinwidth() );
+		size_t angularBinIDReverse = floor((-cosPhiReverse + 1.)/ angularbinwidth() );
+		size_t binID = distanceBinID * _angularBins + angularBinID;
+		size_t binIDReverse = distanceBinID * _angularBins + angularBinIDReverse;
+		#if defined _OPENMP
+		#pragma omp atomic
+		#endif
+		_ARDFdistribution.local[cid1][cid2][binID]++;
+		#if defined _OPENMP
+		#pragma omp atomic
+		#endif
+		_ARDFdistribution.local[cid2][cid1][binIDReverse]++;
+	}
 
 	void observeRDF(Molecule const& mi, Molecule const& mj, double dd) {
 		observeRDFMolecule(dd, mi.componentid(), mj.componentid());
@@ -97,6 +118,9 @@ public:
 			unsigned sj = mj.numSites();
 			if(si+sj > 2) {
 				for(unsigned m = 0; m < si; m++) {
+					// when interacting two molecules with the same component id, the interaction of site m with site n is calculated twice if m!=n.
+					// this duplication is corrected by correctionFactor in the writeToFile(...) function.
+					// fixing this here, by starting n at m will break the unit tests and some symmetry.
 					for(unsigned n = 0; n < sj; n++) {
 						const std::array<double,3> dii = mi.site_d_abs(m);
 						const std::array<double,3> djj = mj.site_d_abs(n);
@@ -127,7 +151,10 @@ public:
 	 */
 	inline void observeRDFSite(double dd, unsigned i, unsigned j, unsigned m, unsigned n) {
 		if(dd > _maxDistanceSquare) { return; }
-		if(i > j) { std::swap(j, i); }
+		if (i > j) {
+			std::swap(j, i);
+			std::swap(m, n);
+		}
 
 		unsigned int binId = floor( sqrt(dd) / binwidth() );
 		#if defined _OPENMP
@@ -143,6 +170,7 @@ public:
 	}
 
 	bool isEnabledSiteRDF() const { return _doCollectSiteRDF; }
+	bool doARDF() const { return _doARDF; }
 
 	void reset();  //!< reset all values to 0, except the accumulated ones.
 
@@ -156,22 +184,36 @@ private:
 
 	void init();
 	unsigned int numBins() const { return _bins; }
+	unsigned int numARDFBins() const { return _ARDFBins; }
 	double binwidth() const { return _intervalLength; }
+	double angularbinwidth() const { return _angularIntervalLength; }
 	void collectRDF(DomainDecompBase* domainDecomp);  //!< update global values from local once
 
 	//! Update the "accumulatedXXX"-fields from the "global"-variables.
 	//! @note consequently, collectRDF should be called just before.
 	void accumulateRDF();
 
-	void writeToFile(const Domain* domain, std::string filename, unsigned int i, unsigned int j) const;
-
+	void writeToFile(const Domain* domain, const std::string& filename, unsigned int i, unsigned int j) const;
+	void writeToFileARDF(const Domain* domain, const std::string& filename, unsigned int i, unsigned int j) const;
 	//! The length of an interval
 	//! Only used for the output to scale the "radius"-axis.
 	double _intervalLength;
+	
+	//! The length of an angular interval
+	//! Only used for the output to scale the "phi"-axis.
+	double _angularIntervalLength;
 
 	//! The number of bins, i.e. the number of intervals in which the cutoff
 	//! radius will be subdivided.
-	unsigned int _bins;
+	unsigned long _bins;
+	
+	//! The number of bins in angular direction in case the angular RDF is
+	//! being calculated
+	unsigned long _angularBins {1};
+	
+	//! The total number of bins for the ARDF is the product of the radial bins and
+	//! the angular bins
+	unsigned long _ARDFBins;
 
 	//! number of different components (i.e. molecule types).
 	unsigned int _numberOfComponents;
@@ -207,12 +249,19 @@ private:
 	//! holds the distribution of the neighbouring particles, locally for this process,
 	//! i.e. the number of particles of components m and n in bin b: _distribution.local[m][n][b] or _distribution.global[m][n][b];
 	CommVar<std::vector<std::vector<std::vector<unsigned long>>>> _distribution;
-
+	CommVar<std::vector<std::vector<std::vector<unsigned long>>>> _ARDFdistribution;
 	//! holds the distribution of the neighbouring particles, globally accumulated.
 	std::vector<std::vector<std::vector<unsigned long>>> _globalAccumulatedDistribution;
-
+	std::vector<std::vector<std::vector<unsigned long>>> _globalAccumulatedARDFDistribution;
+	
 	bool _doCollectSiteRDF;
-
+	bool _doARDF;
+	// vector indices:
+	// first: component i
+	// second: component j, but shifted by -i, so that we only have to save it once for each component interaction (i<->j is the same as j<->i)
+	// third: site m of first component
+	// fourth: site n of second component
+	// fifth: bin to sort the particles into to get the actual RDF.
 	CommVar<std::vector<std::vector<std::vector<std::vector<std::vector<unsigned long>>>>>> _siteDistribution;
 
 	std::vector<std::vector<std::vector<std::vector<std::vector<unsigned long>>>>> _globalAccumulatedSiteDistribution;

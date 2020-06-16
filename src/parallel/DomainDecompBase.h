@@ -55,7 +55,7 @@ public:
 	DomainDecompBase();
 
 	//! @brief The Destructor finalizes MPI
-	virtual ~DomainDecompBase();
+	~DomainDecompBase() override;
 
 	virtual void readXML(XMLfileUnits& xmlconfig);
 
@@ -116,7 +116,7 @@ public:
 	//! @param y y-coordinate of the position to be checked
 	//! @param z z-coordinate of the position to be checked
 	//! @param domain might be needed to get the bounding box
-	virtual bool procOwnsPos(double x, double y, double z, Domain* domain);
+	virtual bool procOwnsPos(double x, double y, double z, Domain* domain) final;
 
 	//! @brief get the minimum and maximum coordinate of the bounding box of this process' domain
 	//! @param domain
@@ -138,7 +138,7 @@ public:
 	//!        The format is not strictly defined and depends on the decomposition
 	//! @param filename name of the file into which the data will be written
 	//! @param domain e.g. needed to get the bounding boxes
-	virtual void printDecomp(std::string filename, Domain* domain);
+	virtual void printDecomp(const std::string& filename, Domain* domain);
 
 
 	//! @brief returns the own rank
@@ -172,17 +172,23 @@ public:
 	//! @param moleculeContainer e.g. needed for the cutoff radius
 	double getIOCutoffRadius(int dim, Domain* domain, ParticleContainer* moleculeContainer);
 
+
+#ifdef ENABLE_MPI
 	//! @brief appends molecule data to the file. The format is the same as that of the input file
+	//! This version uses, MPI IO.
 	//! @param filename name of the file into which the data will be written
 	//! @param moleculeContainer all Particles from this container will be written to the file
-	//!
-	//! Currently, parallel IO isn't used.
-	//! To ensure that not more than one process writes to the file at any time,
-	//! there is a loop over all processes with a barrier in between
+	void writeMoleculesToMPIFileBinary(const std::string& filename, ParticleContainer* moleculeContainer) const;
+#endif // ENABLE_MPI
+
+	//! @brief appends molecule data to the file. The format is the same as that of the input file
+	//! If MPI is enabled and binary files are supposed to be written this function will call writeMoleculesToMPIFileBinary().
+	//! Otherwise, to ensure that not more than one process writes to the file at any time,
+	//! there is a loop over all processes with a barrier in between.
 	//! @param filename name of the file into which the data will be written
 	//! @param moleculeContainer all Particles from this container will be written to the file
 	//! @param binary flag, that is true if the output shall be binary
-	void writeMoleculesToFile(std::string filename, ParticleContainer* moleculeContainer, bool binary = false) const;
+	void writeMoleculesToFile(const std::string& filename, ParticleContainer* moleculeContainer, bool binary = false) const;
 
 
 	void updateSendLeavingWithCopies(bool sendTogether){
@@ -281,6 +287,8 @@ public:
 	virtual void printCommunicationPartners(std::string filename) const {};
 
 protected:
+	void addLeavingMolecules(std::vector<Molecule>&& invalidMolecules, ParticleContainer* moleculeContainer);
+
 	/**
 	 * Handles the sequential version of particles leaving the domain.
 	 * Also used as a fall-back for the MPI variant if a process spans an entire dimension.
@@ -297,9 +305,10 @@ protected:
 	 * @param y -1, 0 or 1
 	 * @param z -1, 0 or 1
 	 * @param moleculeContainer
+	 * @param invalidParticles used if moleculeContainer->isInvalidParticleReturner() is true
 	 */
-	void handleDomainLeavingParticlesDirect(const HaloRegion& haloRegion, ParticleContainer* moleculeContainer) const;
-
+	void handleDomainLeavingParticlesDirect(const HaloRegion& haloRegion, ParticleContainer* moleculeContainer,
+											std::vector<Molecule>& invalidParticles) const;
 
 	/**
 	 * @brief Does the force exchange for each dimension. Will be called for dim=0, 1 and 2.
@@ -317,7 +326,8 @@ protected:
 
 	void populateHaloLayerWithCopies(unsigned dim, ParticleContainer* moleculeContainer) const;
 
-	void populateHaloLayerWithCopiesDirect(const HaloRegion& haloRegion, ParticleContainer* moleculeContainer) const;
+	void populateHaloLayerWithCopiesDirect(const HaloRegion& haloRegion, ParticleContainer* moleculeContainer,
+										   bool positionCheck = true) const;
 
 	//! the id of the current process
 	int _rank;

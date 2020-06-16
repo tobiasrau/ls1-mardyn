@@ -17,8 +17,12 @@ if(NOT ENABLE_MPI)
 
     # but include DomainDecompBase* and LoadCalc*
     list(FILTER MY_SRC_BACK INCLUDE REGEX "/parallel/")
-    list(FILTER MY_SRC_BACK INCLUDE REGEX "DomainDecompBase|LoadCalc")
+    list(FILTER MY_SRC_BACK INCLUDE REGEX "DomainDecompBase|LoadCalc|Zonal")
     list(APPEND MY_SRC ${MY_SRC_BACK})
+else()
+    if(NOT ENABLE_ALLLBL)
+        list(FILTER MY_SRC EXCLUDE REGEX "ALLLoadBalancer")
+    endif()
 endif()
 
 # if fmm fft is disabled, remove everything in an fft directory
@@ -58,9 +62,15 @@ TARGET_LINK_LIBRARIES(MarDyn
         ${LAPACK_LIB}  # for armadillo
         ${VTK_LIB}     # for VTK/xerces
         ${CPPUNIT_LIB} # for unit tests
+<<<<<<< HEAD
         ${autopas_lib} # for autopas
 	    libzmq         # for insitu plugin
 	    libadios2      # for adios2 dependency
+=======
+        ${AUTOPAS_LIB} # for autopas
+        ${LZ4_LIB}     # for LZ4 compression
+        ${ALL_LIB}     # for ALL
+>>>>>>> master
         )
 
 ADD_TEST(

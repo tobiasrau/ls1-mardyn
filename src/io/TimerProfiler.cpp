@@ -24,11 +24,6 @@ TimerProfiler::TimerProfiler(): _numElapsedIterations(0), _displayMode(Displaymo
 	readInitialTimersFromFile("");
 }
 
-TimerProfiler::~TimerProfiler() {
-	_clearTimers();
-	mardyn_assert(_timers.size() == 0);
-}
-
 void TimerProfiler::readXML(XMLfileUnits& xmlconfig) {
 	std::string displayMode;
 	if(xmlconfig.getNodeValue("displaymode", displayMode)) {
@@ -51,7 +46,7 @@ void TimerProfiler::readXML(XMLfileUnits& xmlconfig) {
 Timer* TimerProfiler::getTimer(string timerName){
 	auto timerProfiler = _timers.find(timerName);
 	if(timerProfiler != _timers.end()) {
-		return (timerProfiler->second)._timer;
+		return (timerProfiler->second)._timer.get();
 	}
 	return nullptr;
 }
@@ -64,10 +59,10 @@ void TimerProfiler::registerTimer(string timerName, vector<string> parentTimerNa
 	}
 	_timers[timerName] = _Timer(timerName, timer);
 
-	if (parentTimerNames.size() == 0) {
+	if (parentTimerNames.empty()) {
 		parentTimerNames.push_back(_baseTimerName);
 	}
-	for (auto parentTimerName : parentTimerNames) {
+	for (const auto& parentTimerName : parentTimerNames) {
 		_timers[timerName]._parentTimerNames.push_back(parentTimerName);
 		_timers[parentTimerName]._childTimerNames.push_back(timerName);
 	}
@@ -93,8 +88,8 @@ void TimerProfiler::print(string timerName, string outputPrefix){
 		_debugMessage(timerName);
 		return;
 	}
-	if( (getDisplayMode() == Displaymode::ALL) |
-		(getDisplayMode() == Displaymode::ACTIVE && getTimer(timerName)->isActive()) |
+	if( (getDisplayMode() == Displaymode::ALL) ||
+		(getDisplayMode() == Displaymode::ACTIVE && getTimer(timerName)->isActive()) ||
 		(getDisplayMode() == Displaymode::NON_ZERO && getTimer(timerName)->get_etime() > 0)
 	) {
 		global_log->info() << outputPrefix << getOutputString(timerName) << getTime(timerName) << " sec" << endl;
@@ -107,7 +102,7 @@ void TimerProfiler::printTimers(string timerName, string outputPrefix){
 		print(timerName, outputPrefix);
 		outputPrefix += "\t";
 	}
-	for(auto childTimerName : _timers[timerName]._childTimerNames){
+	for(const auto& childTimerName : _timers[timerName]._childTimerNames){
 		printTimers(childTimerName, outputPrefix);
 	}
 }
@@ -278,20 +273,4 @@ void TimerProfiler::_debugMessage(string timerName){
 	else{
 		global_log->debug()<<"Timer "<<timerName<<" is not registered."<< endl;
 	}
-}
-
-void TimerProfiler::_clearTimers(string timerName){
-	//if the timer is not in the container it must have already been deleted -> return
-	if (!_timers.count(timerName)){
-		return;
-	}
-	for(auto childTimerName : _timers[timerName]._childTimerNames) {
-		_clearTimers(childTimerName);
-	}
-	if (_checkTimer(timerName, false)) {
-		delete _timers[timerName]._timer;
-	}
-	_timers[timerName]._childTimerNames.clear();
-	_timers[timerName]._parentTimerNames.clear();
-	_timers.erase(timerName);
 }
