@@ -186,9 +186,9 @@ void AdiosWriter::endStep(
 
     //local box
     adios2::Variable<double> adios_local_box =
-	//   io->DefineVariable<double>("local_box", {6,domainDecomp->getNumProcs()},
-    //                 {6,domainDecomp->getRank()},
-    //                 {6,1}, adios2::ConstantDims);
+	//   io->DefineVariable<double>("local_box", {domainDecomp->getNumProcs(),6},
+    //                 {domainDecomp->getRank(),6},
+    //                 {1,6}, adios2::ConstantDims);
     // io->DefineVariable<double>("local_box", {domainDecomp->getNumProcs()*6},
     //                  {domainDecomp->getRank() * 6},
     //                  {6}, adios2::ConstantDims);
@@ -211,7 +211,7 @@ void AdiosWriter::endStep(
             global_log->error() << "    AW: Could not create variable: molecule_ids" << std::endl;
             return;
       }             
-      engine->Put<uint64_t>(adios_molecule_ids, m_id.data());
+    engine->Put<uint64_t>(adios_molecule_ids, m_id.data());
 
 
     //component ids
@@ -224,6 +224,19 @@ void AdiosWriter::endStep(
             return;
       }             
       engine->Put<uint32_t>(adios_component_ids, comp_id.data());
+
+
+    //simulation time
+    current_time = _simulation.getSimulationTime();
+    if(domainDecomp->getRank() == 0) {
+        adios2::Variable<double> adios_simulationtime =
+            io->DefineVariable<double>("simulationtime");
+        if (!adios_simulationtime) {
+            global_log->error() << "    AW: Could not create variable: simulationtime" << std::endl;
+            return;
+        }             
+        engine->Put<double>(adios_simulationtime, current_time);
+    }
 
     /* Add cell generation
     //cell ids

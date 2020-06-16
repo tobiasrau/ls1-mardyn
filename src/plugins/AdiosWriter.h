@@ -80,6 +80,7 @@ private:
     // output filename, from XML
     std::string fname;
     uint32_t _writefrequency;
+    double current_time;
     // variables to write, see documentation
     std::map<std::string, std::vector<double> > vars;
     // main instance
