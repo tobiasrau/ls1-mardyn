@@ -22,6 +22,16 @@ void AdiosWriter::init(ParticleContainer* particleContainer,
         vars["x"] = std::vector<double>();
         vars["y"] = std::vector<double>();
         vars["z"] = std::vector<double>();
+        vars["vx"] = std::vector<double>();
+        vars["vy"] = std::vector<double>();
+        vars["vz"] = std::vector<double>();
+        vars["q0"] = std::vector<double>();
+        vars["q1"] = std::vector<double>();
+        vars["q2"] = std::vector<double>();
+        vars["q3"] = std::vector<double>();
+        vars["Dx"] = std::vector<double>();
+        vars["Dy"] = std::vector<double>();
+        vars["Dz"] = std::vector<double>();
 
 };
 
@@ -122,6 +132,18 @@ void AdiosWriter::endStep(
 		vars["x"].emplace_back(m->r(0));
 		vars["y"].emplace_back(m->r(1));
 		vars["z"].emplace_back(m->r(2));
+        vars["vx"].emplace_back(m->v(0));
+        vars["vy"].emplace_back(m->v(1));
+        vars["vz"].emplace_back(m->v(2));
+        auto q = m->q();
+        vars["q0"].emplace_back(q.qw());
+        vars["q1"].emplace_back(q.qx());
+        vars["q2"].emplace_back(q.qy());
+        vars["q3"].emplace_back(q.qz());
+        vars["Dx"].emplace_back(m->D(0));
+        vars["Dy"].emplace_back(m->D(1));
+        vars["Dz"].emplace_back(m->D(2));
+
         m_id.emplace_back(m->getID());
         comp_id.emplace_back(m->componentid());
 	}
@@ -155,7 +177,7 @@ void AdiosWriter::endStep(
 
     engine->BeginStep();
     io->RemoveAllVariables();
-    for (auto var : vars) {
+    for (auto& var : vars) {
         global_log->info() << "    AW: Defining Variables" << std::endl;
         adios2::Variable<double> adiosVar =
             io->DefineVariable<double>(var.first, {globalNumParticles},
